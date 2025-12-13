@@ -220,38 +220,6 @@ int index_in_strings(const char *strings, const char *key) FAST_FUNC;
 
 extern void *xmalloc_open_read_close(const char *filename, size_t *maxsz_p) FAST_FUNC RETURNS_MALLOC;
 
-// getopt32.c
-uint32_t getopt32(char **argv, const char *applet_opts, ...) FAST_FUNC;
-# define No_argument "\0"
-# define Required_argument "\001"
-# define Optional_argument "\002"
-#if ENABLE_LONG_OPTS
-uint32_t getopt32long(char **argv, const char *optstring, const char *longopts, ...) FAST_FUNC;
-#else
-#define getopt32long(argv,optstring,longopts,...) \
-	getopt32(argv,optstring,##__VA_ARGS__)
-#endif
-/* BSD-derived getopt() functions require that optind be set to 1 in
- * order to reset getopt() state.  This used to be generally accepted
- * way of resetting getopt().  However, glibc's getopt()
- * has additional getopt() state beyond optind (specifically, glibc
- * extensions such as '+' and '-' at the start of the string), and requires
- * that optind be set to zero to reset its state.  BSD-derived versions
- * of getopt() misbehaved if optind is set to 0 in order to reset getopt(),
- * and glibc's getopt() used to coredump if optind is set 1 in order
- * to reset getopt().
- * Then BSD introduced additional variable "optreset" which should be
- * set to 1 in order to reset getopt().  Sigh.  Standards, anyone?
- *
- * By ~2008, OpenBSD 3.4 was changed to survive glibc-like optind = 0
- * (to interpret it as if optreset was set).
- */
-#if 1 /*def __GLIBC__*/
-#define GETOPT_RESET() (optind = 0)
-#else /* BSD style */
-#define GETOPT_RESET() (optind = 1)
-#endif
-
 /* Having next pointer as a first member allows easy creation
  * of "llist-compatible" structs, and using llist_FOO functions
  * on them.
