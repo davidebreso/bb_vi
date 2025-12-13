@@ -10,7 +10,6 @@
 #ifndef LIBBB_H
 #define LIBBB_H 1
 
-#define _GNU_SOURCE /* See feature_test_macros(7) */
 #include "platform.h"
 #include "autoconf.h"
 
@@ -80,7 +79,7 @@
 
 #define vi_main main
 #define applet_name "vi"
-#define BB_VER "1.33.2"
+#define BB_VER "1.37.0"
 
 /* "Keycodes" that report an escape sequence.
  * We use something which fits into signed char,
@@ -228,15 +227,7 @@ typedef struct llist_t {
 	struct llist_t *link;
 	char *data;
 } llist_t;
-void llist_add_to(llist_t **old_head, void *data) FAST_FUNC;
 void llist_add_to_end(llist_t **list_head, void *data) FAST_FUNC;
 void *llist_pop(llist_t **elm) FAST_FUNC;
-void llist_unlink(llist_t **head, llist_t *elm) FAST_FUNC;
-void llist_free(llist_t *elm, void (*freeit)(void *data)) FAST_FUNC;
-llist_t *llist_rev(llist_t *list) FAST_FUNC;
-llist_t *llist_find_str(llist_t *first, const char *str) FAST_FUNC;
-/* BTW, surprisingly, changing API to
- *   llist_t *llist_add_to(llist_t *old_head, void *data)
- * etc does not result in smaller code... */
 
 #endif
