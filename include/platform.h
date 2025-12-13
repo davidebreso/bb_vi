@@ -490,6 +490,7 @@ typedef unsigned smalluint;
 
 #if defined(__APPLE__)
 #undef HAVE_STRCHRNUL
+#undef HAVE_MEMRCHR
 #endif
 
 #if defined(__FreeBSD__)

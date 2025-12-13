@@ -6,7 +6,7 @@ CC?=gcc
 
 CFLAGS+=-Os -Wall -Wextra
 CFLAGS+=-I$(TOP_DIR)/include
-LDFLAGS+=-static
+LDFLAGS+=
 
 SOURCES:=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/libbb/*.c)
 OBJECTS:=$(patsubst %.c, %.o, $(SOURCES))

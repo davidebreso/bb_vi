@@ -142,7 +142,7 @@ struct globals;
 /* '*const' ptr makes gcc optimize code much better.
  * Magic prevents ptr_to_globals from going into rodata.
  * If you want to assign a value, use SET_PTR_TO_GLOBALS(x) */
-extern struct globals *const ptr_to_globals;
+extern struct globals *ptr_to_globals;
 #if defined(__clang_major__) && __clang_major__ >= 9
 /* Clang/llvm drops assignment to "constant" storage. Silently.
  * Needs serious convincing to not eliminate the store.
