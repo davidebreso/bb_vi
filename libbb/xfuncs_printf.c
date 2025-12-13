@@ -93,3 +93,25 @@ int FAST_FUNC fflush_all(void) {
 int FAST_FUNC bb_putchar(int ch) {
     return putchar(ch);
 }
+
+int FAST_FUNC fputs_stdout(const char *s)
+{
+	return fputs(s, stdout);
+}
+
+// Die with an error message if we can't malloc() enough space and do an
+// sprintf() into that space.
+char* FAST_FUNC xasprintf(const char *format, ...)
+{
+	va_list p;
+	int r;
+	char *string_ptr;
+
+	va_start(p, format);
+	r = vasprintf(&string_ptr, format, p);
+	va_end(p);
+
+	if (r < 0)
+		bb_die_memory_exhausted();
+	return string_ptr;
+}

@@ -350,6 +350,16 @@ got_all:
     goto start_over;
 }
 
+int64_t FAST_FUNC safe_read_key(int fd, char *buffer, int timeout)
+{
+	int64_t r;
+	do {
+		/* errno = 0; - read_key does this itself */
+		r = read_key(fd, buffer, timeout);
+	} while (errno == EINTR);
+	return r;
+}
+
 /* Find out if the last character of a string matches the one given */
 char *FAST_FUNC last_char_is(const char *s, int c) {
     if (!s[0])

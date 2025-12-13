@@ -230,6 +230,8 @@ char *xstrdup(const char *s) FAST_FUNC RETURNS_MALLOC;
 char *xstrndup(const char *s, int n) FAST_FUNC RETURNS_MALLOC;
 int fflush_all(void) FAST_FUNC;
 int bb_putchar(int ch) FAST_FUNC;
+int fputs_stdout(const char *s) FAST_FUNC;
+char *xasprintf(const char *format, ...) __attribute__ ((format(printf, 1, 2))) FAST_FUNC RETURNS_MALLOC;
 
 // read.c
 ssize_t safe_read(int fd, void *buf, size_t count) FAST_FUNC;
@@ -237,8 +239,73 @@ ssize_t full_read(int fd, void *buf, size_t len) FAST_FUNC;
 
 // read_key.c
 int64_t read_key(int fd, char *buffer, int timeout) FAST_FUNC;
+int64_t safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
 char *last_char_is(const char *s, int c) FAST_FUNC;
 char *skip_whitespace(const char *s) FAST_FUNC;
 char *skip_non_whitespace(const char *s) FAST_FUNC;
+
+// safe_strncpy.c
+void overlapping_strcpy(char *dst, const char *src) FAST_FUNC;
+
+/* Concatenate path and filename to new allocated buffer.
+ * Add "/" only as needed (no duplicate "//" are produced).
+ * If path is NULL, it is assumed to be "/".
+ * filename should not be NULL. */
+char *concat_path_file(const char *path, const char *filename) FAST_FUNC;
+
+int index_in_strings(const char *strings, const char *key) FAST_FUNC;
+
+extern void *xmalloc_open_read_close(const char *filename, size_t *maxsz_p) FAST_FUNC RETURNS_MALLOC;
+
+// getopt32.c
+uint32_t getopt32(char **argv, const char *applet_opts, ...) FAST_FUNC;
+# define No_argument "\0"
+# define Required_argument "\001"
+# define Optional_argument "\002"
+#if ENABLE_LONG_OPTS
+uint32_t getopt32long(char **argv, const char *optstring, const char *longopts, ...) FAST_FUNC;
+#else
+#define getopt32long(argv,optstring,longopts,...) \
+	getopt32(argv,optstring,##__VA_ARGS__)
+#endif
+/* BSD-derived getopt() functions require that optind be set to 1 in
+ * order to reset getopt() state.  This used to be generally accepted
+ * way of resetting getopt().  However, glibc's getopt()
+ * has additional getopt() state beyond optind (specifically, glibc
+ * extensions such as '+' and '-' at the start of the string), and requires
+ * that optind be set to zero to reset its state.  BSD-derived versions
+ * of getopt() misbehaved if optind is set to 0 in order to reset getopt(),
+ * and glibc's getopt() used to coredump if optind is set 1 in order
+ * to reset getopt().
+ * Then BSD introduced additional variable "optreset" which should be
+ * set to 1 in order to reset getopt().  Sigh.  Standards, anyone?
+ *
+ * By ~2008, OpenBSD 3.4 was changed to survive glibc-like optind = 0
+ * (to interpret it as if optreset was set).
+ */
+#if 1 /*def __GLIBC__*/
+#define GETOPT_RESET() (optind = 0)
+#else /* BSD style */
+#define GETOPT_RESET() (optind = 1)
+#endif
+
+/* Having next pointer as a first member allows easy creation
+ * of "llist-compatible" structs, and using llist_FOO functions
+ * on them.
+ */
+typedef struct llist_t {
+	struct llist_t *link;
+	char *data;
+} llist_t;
+void llist_add_to(llist_t **old_head, void *data) FAST_FUNC;
+void llist_add_to_end(llist_t **list_head, void *data) FAST_FUNC;
+void *llist_pop(llist_t **elm) FAST_FUNC;
+void llist_unlink(llist_t **head, llist_t *elm) FAST_FUNC;
+void llist_free(llist_t *elm, void (*freeit)(void *data)) FAST_FUNC;
+llist_t *llist_rev(llist_t *list) FAST_FUNC;
+llist_t *llist_find_str(llist_t *first, const char *str) FAST_FUNC;
+/* BTW, surprisingly, changing API to
+ *   llist_t *llist_add_to(llist_t *old_head, void *data)
+ * etc does not result in smaller code... */
 
 #endif
