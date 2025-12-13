@@ -464,7 +464,7 @@ struct globals {
 # endif
 #endif /* ENABLE_FEATURE_VI_UNDO */
 };
-#define G (*ptr_to_globals)
+struct globals G;
 #define text           (G.text          )
 #define text_size      (G.text_size     )
 #define end            (G.end           )
@@ -540,15 +540,6 @@ struct globals {
 #define undo_queue_spos  (G.undo_queue_spos )
 # endif
 #endif
-
-#define INIT_G() do { \
-	SET_PTR_TO_GLOBALS(xzalloc(sizeof(G))); \
-	last_modified_count--; \
-	/* "" but has space for 2 chars: */ \
-	IF_FEATURE_VI_SEARCH(last_search_pattern = xzalloc(2);) \
-	tabstop = 8; \
-	IF_FEATURE_VI_SETOPTS(newindent--;) \
-} while (0)
 
 #if ENABLE_FEATURE_VI_CRASHME
 static int crashme = 0;
@@ -4965,7 +4956,12 @@ int vi_main(int argc, char **argv)
 {
 	int c;
 
-	INIT_G();
+	memset(&G, 0, sizeof(G));
+	last_modified_count--;
+	/* "" but has space for 2 chars: */
+	IF_FEATURE_VI_SEARCH(last_search_pattern = xzalloc(2);)
+	tabstop = 8;
+	IF_FEATURE_VI_SETOPTS(newindent--;)
 
 #if ENABLE_FEATURE_VI_UNDO
 	//undo_stack_tail = NULL; - already is
