@@ -45,7 +45,7 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
-#define ARRAY_SIZE(x) ((unsigned)(sizeof(x) / sizeof((x)[0])))
+#define ARRAY_SIZE(x) ((int)(sizeof(x) / sizeof((x)[0])))
 
 #define vi_main main
 #define applet_name "vi"
@@ -135,7 +135,7 @@ void xfunc_die(void) FAST_FUNC;
 #define TERMIOS_RAW_INPUT (1 << 3)
 ssize_t safe_write(int fd, const void *buf, size_t count) FAST_FUNC;
 ssize_t full_write(int fd, const void *buf, size_t len) FAST_FUNC;
-int get_terminal_width_height(int fd, unsigned *width, unsigned *height) FAST_FUNC;
+int get_terminal_width_height(int fd, int *width, int *height) FAST_FUNC;
 int get_terminal_width(int fd) FAST_FUNC;
 int tcsetattr_stdin_TCSANOW(const struct termios *tp) FAST_FUNC;
 int get_termios_and_make_raw(int fd, struct termios *newterm, struct termios *oldterm, int flags) FAST_FUNC;

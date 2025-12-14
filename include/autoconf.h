@@ -26,7 +26,7 @@
 #define IF_VI(...) __VA_ARGS__
 #define IF_NOT_VI(...)
 
-#define CONFIG_FEATURE_VI_MAX_LEN 1024
+#define CONFIG_FEATURE_VI_MAX_LEN 4096
 #define ENABLE_FEATURE_VI_MAX_LEN 1
 #define IF_FEATURE_VI_MAX_LEN(...) __VA_ARGS__
 #define IF_NOT_FEATURE_VI_MAX_LEN(...)

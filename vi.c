@@ -344,7 +344,7 @@ struct globals {
 	int cmdline_filecnt;     // how many file names on cmd line
 	int cmdcnt;              // repetition count
 	char *rstart;            // start of text in Replace mode
-	unsigned rows, columns;	 // the terminal screen is this size
+	int rows, columns;	 // the terminal screen is this size
 #if ENABLE_FEATURE_VI_ASK_TERMINAL
 	int get_rowcol_error;
 #endif

@@ -101,7 +101,7 @@ static int wh_helper(int value, int def_val, const char *env_name, int *err) {
 
 /* It is perfectly ok to pass in a NULL for either width or for
  * height, in which case that value will not be set.  */
-int FAST_FUNC get_terminal_width_height(int fd, unsigned *width, unsigned *height) {
+int FAST_FUNC get_terminal_width_height(int fd, int *width, int *height) {
     struct winsize win;
     int err;
     int close_me = -1;
@@ -133,7 +133,7 @@ int FAST_FUNC get_terminal_width_height(int fd, unsigned *width, unsigned *heigh
     return err;
 }
 int FAST_FUNC get_terminal_width(int fd) {
-    unsigned width;
+    int width;
     get_terminal_width_height(fd, &width, NULL);
     return width;
 }
