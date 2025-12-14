@@ -4951,7 +4951,6 @@ void bb_show_usage(void) {
     fprintf(stderr, "-H      List available features\n");
 }
 
-// int vi_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int vi_main(int argc, char **argv)
 {
 	int c;

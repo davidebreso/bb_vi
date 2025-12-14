@@ -15,21 +15,10 @@
 #define __GNUC_PREREQ(maj, min) 0
 #endif
 
-/* __restrict is known in EGCS 1.2 and above. */
-#if !__GNUC_PREREQ(2, 92)
-#ifndef __restrict
-#define __restrict
-#endif
-#endif
-
 #if !__GNUC_PREREQ(2, 7)
 #ifndef __attribute__
 #define __attribute__(x)
 #endif
-#endif
-
-#if !__GNUC_PREREQ(5, 0)
-#define deprecated(msg) deprecated
 #endif
 
 #undef inline
@@ -41,18 +30,8 @@
 #define inline
 #endif
 
-#ifndef __const
-#define __const const
-#endif
-
 #define UNUSED_PARAM __attribute__((__unused__))
 #define NORETURN __attribute__((__noreturn__))
-
-#if __GNUC_PREREQ(4, 5)
-#define bb_unreachable(altcode) __builtin_unreachable()
-#else
-#define bb_unreachable(altcode) altcode
-#endif
 
 /* "The malloc attribute is used to tell the compiler that a function
  * may be treated as if any non-NULL pointer it returns cannot alias
@@ -63,8 +42,6 @@
  * to the new pointer) after the function returns a non-NULL value."
  */
 #define RETURNS_MALLOC __attribute__((malloc))
-#define PACKED __attribute__((__packed__))
-#define ALIGNED(m) __attribute__((__aligned__(m)))
 
 /* __NO_INLINE__: some gcc's do not honor inlining! :( */
 #if __GNUC_PREREQ(3, 0) && !defined(__NO_INLINE__)
@@ -85,34 +62,6 @@
 #define UNUSED_PARAM_RESULT
 #endif
 
-/* used by unit test machinery to run registration functions before calling main() */
-#define INIT_FUNC __attribute__((constructor))
-
-/* -fwhole-program makes all symbols local. The attribute externally_visible
- * forces a symbol global.  */
-#if __GNUC_PREREQ(4, 1)
-#define EXTERNALLY_VISIBLE __attribute__((visibility("default")))
-//__attribute__ ((__externally_visible__))
-#else
-#define EXTERNALLY_VISIBLE
-#endif
-
-/* At 4.4 gcc become much more anal about this, need to use "aliased" types */
-#if __GNUC_PREREQ(4, 4)
-#define FIX_ALIASING __attribute__((__may_alias__))
-#else
-#define FIX_ALIASING
-#endif
-
-/* We use __extension__ in some places to suppress -pedantic warnings
- * about GCC extensions.  This feature didn't work properly before
- * gcc 2.8.  */
-#if !__GNUC_PREREQ(2, 8)
-#ifndef __extension__
-#define __extension__
-#endif
-#endif
-
 /* FAST_FUNC is a qualifier which (possibly) makes function call faster
  * and/or smaller by using modified ABI. It is usually only needed
  * on non-static, busybox internal functions. Recent versions of gcc
@@ -131,16 +80,6 @@
 #endif
 #endif
 
-/* Make all declarations hidden (-fvisibility flag only affects definitions) */
-/* (don't include system headers after this until corresponding pop!) */
-#if __GNUC_PREREQ(4, 1) && !defined(__CYGWIN__)
-#define PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN _Pragma("GCC visibility push(hidden)")
-#define POP_SAVED_FUNCTION_VISIBILITY _Pragma("GCC visibility pop")
-#else
-#define PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
-#define POP_SAVED_FUNCTION_VISIBILITY
-#endif
-
 /* gcc-2.95 had no va_copy but only __va_copy. */
 #if !__GNUC_PREREQ(3, 0)
 #include <stdarg.h>
@@ -149,142 +88,7 @@
 #endif
 #endif
 
-/* ---- Endian Detection ------------------------------------ */
-
 #include <limits.h>
-#if defined(__digital__) && defined(__unix__)
-#include <sex.h>
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-#include <sys/resource.h> /* rlimit */
-#include <machine/endian.h>
-#define bswap_64 __bswap64
-#define bswap_32 __bswap32
-#define bswap_16 __bswap16
-#else
-#include <byteswap.h>
-#include <endian.h>
-#endif
-
-#if defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN
-#define BB_BIG_ENDIAN 1
-#define BB_LITTLE_ENDIAN 0
-#elif defined(__BYTE_ORDER) && __BYTE_ORDER == __LITTLE_ENDIAN
-#define BB_BIG_ENDIAN 0
-#define BB_LITTLE_ENDIAN 1
-#elif defined(_BYTE_ORDER) && _BYTE_ORDER == _BIG_ENDIAN
-#define BB_BIG_ENDIAN 1
-#define BB_LITTLE_ENDIAN 0
-#elif defined(_BYTE_ORDER) && _BYTE_ORDER == _LITTLE_ENDIAN
-#define BB_BIG_ENDIAN 0
-#define BB_LITTLE_ENDIAN 1
-#elif defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN
-#define BB_BIG_ENDIAN 1
-#define BB_LITTLE_ENDIAN 0
-#elif defined(BYTE_ORDER) && BYTE_ORDER == LITTLE_ENDIAN
-#define BB_BIG_ENDIAN 0
-#define BB_LITTLE_ENDIAN 1
-#elif defined(__386__)
-#define BB_BIG_ENDIAN 0
-#define BB_LITTLE_ENDIAN 1
-#else
-#error "Can't determine endianness"
-#endif
-
-#if ULONG_MAX > 0xffffffff
-#define bb_bswap_64(x) bswap_64(x)
-#endif
-
-/* SWAP_LEnn means "convert CPU<->little_endian by swapping bytes" */
-#if BB_BIG_ENDIAN
-#define SWAP_BE16(x) (x)
-#define SWAP_BE32(x) (x)
-#define SWAP_BE64(x) (x)
-#define SWAP_LE16(x) bswap_16(x)
-#define SWAP_LE32(x) bswap_32(x)
-#define SWAP_LE64(x) bb_bswap_64(x)
-#define IF_BIG_ENDIAN(...) __VA_ARGS__
-#define IF_LITTLE_ENDIAN(...)
-#else
-#define SWAP_BE16(x) bswap_16(x)
-#define SWAP_BE32(x) bswap_32(x)
-#define SWAP_BE64(x) bb_bswap_64(x)
-#define SWAP_LE16(x) (x)
-#define SWAP_LE32(x) (x)
-#define SWAP_LE64(x) (x)
-#define IF_BIG_ENDIAN(...)
-#define IF_LITTLE_ENDIAN(...) __VA_ARGS__
-#endif
-
-/* ---- Unaligned access ------------------------------------ */
-
-#include <stdint.h>
-typedef int bb__aliased_int FIX_ALIASING;
-typedef long bb__aliased_long FIX_ALIASING;
-typedef uint16_t bb__aliased_uint16_t FIX_ALIASING;
-typedef uint32_t bb__aliased_uint32_t FIX_ALIASING;
-typedef uint64_t bb__aliased_uint64_t FIX_ALIASING;
-
-/* NB: unaligned parameter should be a pointer, aligned one -
- * a lvalue. This makes it more likely to not swap them by mistake
- */
-#if defined(i386) || defined(__x86_64__) || defined(__powerpc__)
-#define BB_UNALIGNED_MEMACCESS_OK 1
-#define move_from_unaligned_int(v, intp) ((v) = *(bb__aliased_int *)(intp))
-#define move_from_unaligned_long(v, longp) ((v) = *(bb__aliased_long *)(longp))
-#define move_from_unaligned16(v, u16p) ((v) = *(bb__aliased_uint16_t *)(u16p))
-#define move_from_unaligned32(v, u32p) ((v) = *(bb__aliased_uint32_t *)(u32p))
-#define move_to_unaligned16(u16p, v) (*(bb__aliased_uint16_t *)(u16p) = (v))
-#define move_to_unaligned32(u32p, v) (*(bb__aliased_uint32_t *)(u32p) = (v))
-#define move_to_unaligned64(u64p, v) (*(bb__aliased_uint64_t *)(u64p) = (v))
-/* #elif ... - add your favorite arch today! */
-#else
-#define BB_UNALIGNED_MEMACCESS_OK 0
-/* performs reasonably well (gcc usually inlines memcpy here) */
-#define move_from_unaligned_int(v, intp) (memcpy(&(v), (intp), sizeof(int)))
-#define move_from_unaligned_long(v, longp) (memcpy(&(v), (longp), sizeof(long)))
-#define move_from_unaligned16(v, u16p) (memcpy(&(v), (u16p), 2))
-#define move_from_unaligned32(v, u32p) (memcpy(&(v), (u32p), 4))
-#define move_to_unaligned16(u16p, v) \
-    do {                             \
-        uint16_t __t = (v);          \
-        memcpy((u16p), &__t, 2);     \
-    } while (0)
-#define move_to_unaligned32(u32p, v) \
-    do {                             \
-        uint32_t __t = (v);          \
-        memcpy((u32p), &__t, 4);     \
-    } while (0)
-#define move_to_unaligned64(u64p, v) \
-    do {                             \
-        uint64_t __t = (v);          \
-        memcpy((u64p), &__t, 8);     \
-    } while (0)
-#endif
-
-/* Unaligned, fixed-endian accessors */
-#define get_unaligned_le32(buf)        \
-    ({                                 \
-        uint32_t v;                    \
-        move_from_unaligned32(v, buf); \
-        SWAP_LE32(v);                  \
-    })
-#define get_unaligned_be32(buf)        \
-    ({                                 \
-        uint32_t v;                    \
-        move_from_unaligned32(v, buf); \
-        SWAP_BE32(v);                  \
-    })
-#define put_unaligned_le32(val, buf) move_to_unaligned32(buf, SWAP_LE32(val))
-#define put_unaligned_be32(val, buf) move_to_unaligned32(buf, SWAP_BE32(val))
-
-/* unxz needs an aligned fixed-endian accessor.
- * (however, the compiler does not realize it's aligned, the cast is still necessary)
- */
-#define get_le32(u32p)                                \
-    ({                                                \
-        uint32_t v = *(bb__aliased_uint32_t *)(u32p); \
-        SWAP_LE32(v);                                 \
-    })
 
 /* ---- Size-saving "small" ints (arch-dependent) ----------- */
 
@@ -317,24 +121,6 @@ typedef unsigned smalluint;
 #define UCLIBC_VERSION 0
 #endif
 
-/* ---- Miscellaneous --------------------------------------- */
-
-#if defined __GLIBC__ || defined __UCLIBC__ || defined __dietlibc__ || defined __BIONIC__ || defined _NEWLIB_VERSION
-#include <features.h>
-#endif
-
-/* Define bb_setpgrp */
-#if defined(__digital__) && defined(__unix__)
-/* use legacy setpgrp(pid_t, pid_t) for now.  move to platform.c */
-#define bb_setpgrp()           \
-    do {                       \
-        pid_t __me = getpid(); \
-        setpgrp(__me, __me);   \
-    } while (0)
-#else
-#define bb_setpgrp() setpgrp()
-#endif
-
 /* fdprintf is more readable, we used it before dprintf was standardized */
 #include <unistd.h>
 #define fdprintf dprintf
@@ -353,49 +139,6 @@ typedef unsigned smalluint;
 #endif
 #define ALIGN8 __attribute__((aligned(8)))
 #define ALIGN_PTR __attribute__((aligned(sizeof(void *))))
-
-/*
- * For 0.9.29 and svn, __ARCH_USE_MMU__ indicates no-mmu reliably.
- * For earlier versions there is no reliable way to check if we are building
- * for a mmu-less system.
- */
-#if ENABLE_NOMMU || (defined __UCLIBC__ && UCLIBC_VERSION > KERNEL_VERSION(0, 9, 28) && !defined __ARCH_USE_MMU__)
-#define BB_MMU 0
-#define USE_FOR_NOMMU(...) __VA_ARGS__
-#define USE_FOR_MMU(...)
-#else
-#define BB_MMU 1
-#define USE_FOR_NOMMU(...)
-#define USE_FOR_MMU(...) __VA_ARGS__
-#endif
-
-#if defined(__digital__) && defined(__unix__)
-#include <standards.h>
-#include <inttypes.h>
-#define PRIu32 "u"
-#if !defined ADJ_OFFSET_SINGLESHOT && defined MOD_CLKA && defined MOD_OFFSET
-#define ADJ_OFFSET_SINGLESHOT (MOD_CLKA | MOD_OFFSET)
-#endif
-#if !defined ADJ_FREQUENCY && defined MOD_FREQUENCY
-#define ADJ_FREQUENCY MOD_FREQUENCY
-#endif
-#if !defined ADJ_TIMECONST && defined MOD_TIMECONST
-#define ADJ_TIMECONST MOD_TIMECONST
-#endif
-#if !defined ADJ_TICK && defined MOD_CLKB
-#define ADJ_TICK MOD_CLKB
-#endif
-#endif
-
-#if defined(__CYGWIN__)
-#define MAXSYMLINKS SYMLOOP_MAX
-#endif
-
-#if defined(ANDROID) || defined(__ANDROID__)
-#define BB_ADDITIONAL_PATH ":/system/sbin:/system/bin:/system/xbin"
-#define SYS_ioprio_set __NR_ioprio_set
-#define SYS_ioprio_get __NR_ioprio_get
-#endif
 
 /* ---- Who misses what? ------------------------------------ */
 

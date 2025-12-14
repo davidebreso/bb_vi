@@ -14,49 +14,19 @@
 #include "autoconf.h"
 
 #include <ctype.h>
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
-#include <netdb.h>
 #include <setjmp.h>
 #include <signal.h>
-#include <paths.h>
-#if defined __UCLIBC__ /* TODO: and glibc? */
-/* use inlined versions of these: */
-#define sigfillset(s) __sigfillset(s)
-#define sigemptyset(s) __sigemptyset(s)
-#define sigisemptyset(s) __sigisemptyset(s)
-#endif
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-/* There are two incompatible basename's, let's not use them! */
-/* See the dirname/basename man page for details */
-#include <libgen.h> /* dirname,basename */
-#undef basename
-#define basename dont_use_basename
 #include <poll.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#if !defined(major) || defined(__GLIBC__)
-#include <sys/sysmacros.h>
-#endif
-#include <sys/wait.h>
 #include <termios.h>
-#include <time.h>
-#include <sys/param.h>
-#include <pwd.h>
-#include <grp.h>
-#include <arpa/inet.h>
 
 /* Some useful definitions */
 #undef FALSE
@@ -141,15 +111,6 @@ enum {
 #else
 #define STRERROR_FMT "%s"
 #define STRERROR_ERRNO , strerror(errno)
-#endif
-
-/* We need to export XXX_main from libbusybox
- * only if we build "individual" binaries
- */
-#if ENABLE_FEATURE_INDIVIDUAL
-#define MAIN_EXTERNALLY_VISIBLE EXTERNALLY_VISIBLE
-#else
-#define MAIN_EXTERNALLY_VISIBLE
 #endif
 
 // verror_msg.c
