@@ -33,8 +33,6 @@
 #define FALSE ((int)0)
 #undef TRUE
 #define TRUE ((int)1)
-#undef SKIP
-#define SKIP ((int)2)
 
 /* Macros for min/max.  */
 #ifndef MIN
@@ -170,16 +168,20 @@ char *skip_non_whitespace(const char *s) FAST_FUNC;
 // safe_strncpy.c
 void overlapping_strcpy(char *dst, const char *src) FAST_FUNC;
 
+// concat_path_file.c
 /* Concatenate path and filename to new allocated buffer.
  * Add "/" only as needed (no duplicate "//" are produced).
  * If path is NULL, it is assumed to be "/".
  * filename should not be NULL. */
 char *concat_path_file(const char *path, const char *filename) FAST_FUNC;
 
+// compare_string_array.c
 int index_in_strings(const char *strings, const char *key) FAST_FUNC;
 
-extern void *xmalloc_open_read_close(const char *filename, size_t *maxsz_p) FAST_FUNC RETURNS_MALLOC;
+// read_printf.c
+void *xmalloc_open_read_close(const char *filename, size_t *maxsz_p) FAST_FUNC RETURNS_MALLOC;
 
+// llist.c
 /* Having next pointer as a first member allows easy creation
  * of "llist-compatible" structs, and using llist_FOO functions
  * on them.
