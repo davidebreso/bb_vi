@@ -1,0 +1,23 @@
+TOP_DIR=$(shell pwd)
+SRCDIR:=$(TOP_DIR)
+OBJDIR:=$(TOP_DIR)
+TARGET:=vi.exe
+CC=owcc
+
+CFLAGS+=-Os -Wall -Wextra -b dos -mcmodel=s
+CFLAGS+=-I$(TOP_DIR)/include -I$(TOP_DIR)/conio
+LDFLAGS+=
+
+SOURCES:=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/libbb/*.c $(SRCDIR)/conio/*.c)
+OBJECTS:=$(patsubst %.c, %.o, $(SOURCES))
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
+
+clean:
+	rm -f *.o libbb/*.o $(TARGET)
+
+lint:
+	find $(PRODUCT_DIR) -iname "*.[ch]" | xargs clang-format -i

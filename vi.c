@@ -598,7 +598,7 @@ static int next_tabstop(int col)
 
 static int prev_tabstop(int col)
 {
-	return col - ((col % tabstop) ?: tabstop);
+	return col - ((col % tabstop) ? (col % tabstop) : tabstop);
 }
 
 static int next_column(char c, int co)
@@ -880,7 +880,7 @@ static void refresh(int full_screen)
 			memcpy(sp+cs, out_buf+cs, ce-cs+1);
 			place_cursor(li, cs);
 			// write line out to terminal
-			fwrite(&sp[cs], ce - cs + 1, 1, stdout);
+			write2(&sp[cs], ce - cs + 1);
 		}
 	}
 
@@ -1000,7 +1000,7 @@ static int get_motion_char(void)
 			// get any non-zero motion count
 			for (cnt = 0; isdigit(c); c = get_one_char())
 				cnt = cnt * 10 + (c - '0');
-			cmdcnt = (cmdcnt ?: 1) * cnt;
+			cmdcnt = (cmdcnt ? cmdcnt : 1) * cnt;
 		} else {
 			// ensure standalone '0' works
 			cmdcnt = 0;
@@ -1027,8 +1027,12 @@ static char *get_input_line(const char *prompt)
 	i = strlen(buf);
 	while (i < MAX_INPUT_LEN - 1) {
 		c = get_one_char();
-		if (c == '\n' || c == '\r' || c == 27)
+		if (c == '\n' || c == '\r')
 			break;		// this is end of input
+		if (c == 27) {
+			buf[0] = '\0';
+			break;
+		}
 		if (isbackspace(c)) {
 			// user wants to erase prev char
 			buf[--i] = '\0';
@@ -1744,7 +1748,7 @@ static char *bound_dot(char *p) // make sure  text[0] <= P < "end"
 static void start_new_cmd_q(char c)
 {
 	// get buffer for new cmd
-	dotcnt = cmdcnt ?: 1;
+	dotcnt = cmdcnt ? cmdcnt : 1;
 	last_modifying_cmd[0] = c;
 	lmc_len = 1;
 	adding2q = 1;
@@ -1825,7 +1829,9 @@ static int file_insert(const char *fn, char *p, int initial)
 	} else if (cnt < size) {
 		// There was a partial read, shrink unused space
 		p = text_hole_delete(p + cnt, p + size - 1, NO_UNDO);
+#  ifndef __DOS__
 		status_line_bold("can't read '%s'", fn);
+#  endif
 	}
 # if ENABLE_FEATURE_VI_UNDO
 	else {
@@ -1837,10 +1843,12 @@ static int file_insert(const char *fn, char *p, int initial)
 
 #if ENABLE_FEATURE_VI_READONLY
 	if (initial
-	 && ((access(fn, W_OK) < 0) ||
+	 && ((access(fn, W_OK) < 0)
+# ifndef __DOS__
 		// root will always have access()
 		// so we check fileperms too
-		!(statbuf.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH))
+		|| !(statbuf.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH))
+# endif
 	    )
 	) {
 		SET_READONLY_FILE(readonly_mode);
@@ -2856,19 +2864,22 @@ static void colon(char *buf)
 			r = end_line(dot);
 		}
 		go_bottom_and_clear_to_eol();
-		puts("\r");
+		// insert_line();
 		for (; q <= r; q++) {
 			int c_is_no_print;
 
 			c = *q;
+			if (c == '\n') {
+				bb_putchar('$');
+				insert_line();
+				continue;
+			}
 			c_is_no_print = (c & 0x80) && !Isprint(c);
 			if (c_is_no_print) {
 				c = '.';
 				standout_start();
 			}
-			if (c == '\n') {
-				write1("$\r");
-			} else if (c < ' ' || c == 127) {
+			if (c < ' ' || c == 127) {
 				bb_putchar('^');
 				if (c == 127)
 					c = '?';
@@ -3428,7 +3439,7 @@ static int find_range(char **start, char **stop, int cmd)
 			buftype = -1;
 	} else if (c == ' ' || c == 'l') {
 		// forward motion by character
-		int tmpcnt = (cmdcnt ?: 1);
+		int tmpcnt = (cmdcnt ? cmdcnt : 1);
 		buftype = PARTIAL;
 		do_cmd(c);		// execute movement cmd
 		// exclude last char unless range isn't what we expected
@@ -3731,7 +3742,7 @@ static void do_cmd(int c)
 			break;
 		}
 		cnt = 0;
-		i = cmdcnt ?: 1;
+		i = cmdcnt ? cmdcnt : 1;
 		// are we putting whole lines or strings
 		if (regtype[YDreg] == WHOLE) {
 			if (c == 'P') {
@@ -4279,7 +4290,7 @@ static void do_cmd(int c)
 	case 'r':			// r- replace the current char with user input
 		c1 = get_one_char();	// get the replacement char
 		if (c1 != 27) {
-			if (end_line(dot) - dot < (cmdcnt ?: 1)) {
+			if (end_line(dot) - dot < (cmdcnt ? cmdcnt : 1)) {
 				indicate_error();
 				goto dc6;
 			}

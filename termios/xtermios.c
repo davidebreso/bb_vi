@@ -590,9 +590,18 @@ void FAST_FUNC show_help(void)
 	);
 }
 
+int FAST_FUNC bb_putchar(int ch) {
+    return putchar(ch);
+}
+
 void FAST_FUNC write1(const char *out)
 {
-	fputs_stdout(out);
+	fputs(out, stdout);
+}
+
+void FAST_FUNC write2(const char *out, size_t n)
+{
+	fwrite(out, n, 1, stdout);
 }
 
 #if ENABLE_FEATURE_VI_WIN_RESIZE
@@ -679,6 +688,11 @@ void FAST_FUNC go_bottom_and_clear_to_eol(void)
 {
 	place_cursor(rows - 1, 0);
 	clear_to_eol();
+}
+
+void FAST_FUNC insert_line(void)
+{
+	write1("\r\n");
 }
 
 //----- Start standout mode ------------------------------------

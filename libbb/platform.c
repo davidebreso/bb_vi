@@ -17,6 +17,20 @@ char* FAST_FUNC strchrnul(const char *s, int c)
 }
 #endif
 
+#ifndef HAVE_STRNDUP
+char* FAST_FUNC strndup(const char *s, size_t n)
+{
+	size_t len = strnlen(s, n);
+  	char *new = (char *)malloc(len + 1);
+
+  	if (new == NULL)
+    	return NULL;
+
+  	new[len] = '\0';
+  	return (char *)memcpy(new, s, len);
+}
+#endif
+
 #ifndef HAVE_VASPRINTF
 int FAST_FUNC vasprintf(char **string_ptr, const char *format, va_list p)
 {

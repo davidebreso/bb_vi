@@ -145,13 +145,22 @@ typedef unsigned smalluint;
  */
 #define HAVE_MEMRCHR 1
 #define HAVE_STRCHRNUL 1
+#define HAVE_STRNDUP 1
 #define HAVE_VASPRINTF 1
 #define HAVE_PRINTF_PERCENTM 1
 
 #if defined(__WATCOMC__)
 #undef HAVE_MEMRCHR
 #undef HAVE_STRCHRNUL
+#undef HAVE_STRNDUP
 #undef HAVE_VASPRINTF
+#include <strings.h>
+#include <io.h>
+#include <tchar.h>
+#define uintptr_t unsigned int
+#define ftruncate _chsize
+#define strnlen _strncnt
+#define getuid() (0)
 #endif
 
 #if defined(__CYGWIN__)
@@ -197,6 +206,10 @@ extern void *memrchr(const void *s, int c, size_t n) FAST_FUNC;
 
 #ifndef HAVE_STRCHRNUL
 extern char *strchrnul(const char *s, int c) FAST_FUNC;
+#endif
+
+#ifndef HAVE_STRNDUP
+extern char *strndup(const char *s, size_t n) FAST_FUNC;
 #endif
 
 #ifndef HAVE_VASPRINTF

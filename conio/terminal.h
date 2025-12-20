@@ -13,10 +13,6 @@
 #include "platform.h"
 #include "autoconf.h"
 
-#include <poll.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-
 enum {
 	MAX_TABSTOP = 32, // sanity limit
 	// User input len. Need not be extra big.
@@ -32,18 +28,16 @@ enum {
  * yet doesn't represent any valid Unicode character.
  * Also, -1 is reserved for error indication and we don't use it. */
 enum {
-    KEYCODE_UP = -2,
-    KEYCODE_DOWN = -3,
-    KEYCODE_RIGHT = -4,
-    KEYCODE_LEFT = -5,
-    KEYCODE_HOME = -6,
-    KEYCODE_END = -7,
-    KEYCODE_INSERT = -8,
-    KEYCODE_DELETE = -9,
-    KEYCODE_PAGEUP = -10,
-    KEYCODE_PAGEDOWN = -11,
-    KEYCODE_BACKSPACE = -12, /* Used only if Alt/Ctrl/Shifted */
-    KEYCODE_D = -13,         /* Used only if Alted */
+    KEYCODE_UP = 0x4800,
+    KEYCODE_DOWN = 0x5000,
+    KEYCODE_RIGHT = 0x4D00,
+    KEYCODE_LEFT = 0x4B00,
+    KEYCODE_HOME = 0x4700,
+    KEYCODE_END = 0x4F00,
+    KEYCODE_INSERT = 0x5200,
+    KEYCODE_DELETE = 0x5300,
+    KEYCODE_PAGEUP = 0x4900,
+    KEYCODE_PAGEDOWN = 0x5100,
 #if 0
 	KEYCODE_FUN1      = ,
 	KEYCODE_FUN2      = ,
@@ -58,22 +52,13 @@ enum {
 	KEYCODE_FUN11     = ,
 	KEYCODE_FUN12     = ,
 #endif
-    /* ^^^^^ Be sure that last defined value is small enough.
-	 * Current read_key() code allows going up to -32 (0xfff..fffe0).
-	 * This gives three upper bits in LSB to play with:
-	 * KEYCODE_foo values are 0xfff..fffXX, lowest XX bits are: scavvvvv,
-	 * s=0 if SHIFT, c=0 if CTRL, a=0 if ALT,
-	 * vvvvv bits are the same for same key regardless of "shift bits".
-	 */
-    // KEYCODE_SHIFT_...   = KEYCODE_...   & ~0x80,
-    KEYCODE_CTRL_RIGHT = KEYCODE_RIGHT & ~0x40,
-    KEYCODE_CTRL_LEFT = KEYCODE_LEFT & ~0x40,
-    KEYCODE_ALT_RIGHT = KEYCODE_RIGHT & ~0x20,
-    KEYCODE_ALT_LEFT = KEYCODE_LEFT & ~0x20,
-    KEYCODE_ALT_BACKSPACE = KEYCODE_BACKSPACE & ~0x20,
-    KEYCODE_ALT_D = KEYCODE_D & ~0x20,
+    KEYCODE_CTRL_RIGHT = 0x7400,
+    KEYCODE_CTRL_LEFT = 0x7300,
+    KEYCODE_ALT_RIGHT = 0x9D00,
+    KEYCODE_ALT_LEFT = 0x9B00,
+    KEYCODE_ALT_BACKSPACE = 0x7F00,
+    KEYCODE_ALT_D = 0x2000,
 
-    KEYCODE_CURSOR_POS = -0x100, /* 0xfff..fff00 */
     /* How long is the longest ESC sequence we know?
 	 * We want it big enough to be able to contain
 	 * cursor position sequence "ESC [ 9999 ; 9999 R"
@@ -83,10 +68,6 @@ enum {
 
 struct term {
  	int rows, columns;	 // the terminal screen is this size
-#if ENABLE_FEATURE_VI_ASK_TERMINAL
-	int get_rowcol_error;
-#endif
-	struct termios term_orig; // remember what the cooked mode was
 	// Should be just enough to hold a key sequence,
 	// but CRASHME mode uses it as generated command buffer too
 #if ENABLE_FEATURE_VI_CRASHME
@@ -99,14 +80,12 @@ struct term {
 extern struct term T;
 #define rows                    (T.rows               )
 #define columns                 (T.columns            )
-#define term_orig               (T.term_orig          )
 #define readbuffer              (T.readbuffer         )
 
-#define isbackspace(c)	((c) == term_orig.c_cc[VERASE] || (c) == 8 || (c) == 127)
+#define isbackspace(c)	((c) == 8 || (c) == 127)
 
-// xtermios.c
-int64_t read_key(int fd, char *buffer, int timeout) FAST_FUNC;
-int64_t safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
+// xconio.c
+int safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
 void show_help(void) FAST_FUNC;
 int bb_putchar(int ch) FAST_FUNC;
 void write1(const char *out) FAST_FUNC;

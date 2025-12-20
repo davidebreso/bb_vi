@@ -90,15 +90,6 @@ int FAST_FUNC fflush_all(void) {
     return fflush(NULL);
 }
 
-int FAST_FUNC bb_putchar(int ch) {
-    return putchar(ch);
-}
-
-int FAST_FUNC fputs_stdout(const char *s)
-{
-	return fputs(s, stdout);
-}
-
 // Die with an error message if we can't malloc() enough space and do an
 // sprintf() into that space.
 char* FAST_FUNC xasprintf(const char *format, ...)

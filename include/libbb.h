@@ -82,8 +82,6 @@ void *xrealloc(void *old, size_t size) FAST_FUNC;
 char *xstrdup(const char *s) FAST_FUNC RETURNS_MALLOC;
 char *xstrndup(const char *s, int n) FAST_FUNC RETURNS_MALLOC;
 int fflush_all(void) FAST_FUNC;
-int bb_putchar(int ch) FAST_FUNC;
-int fputs_stdout(const char *s) FAST_FUNC;
 char *xasprintf(const char *format, ...) __attribute__ ((format(printf, 1, 2))) FAST_FUNC RETURNS_MALLOC;
 
 // read.c
