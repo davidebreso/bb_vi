@@ -5,10 +5,10 @@ TARGET:=vi
 CC?=gcc
 
 CFLAGS+=-Os -Wall -Wextra
-CFLAGS+=-I$(TOP_DIR)/include
+CFLAGS+=-I$(TOP_DIR)/include -I$(TOP_DIR)/termios
 LDFLAGS+=
 
-SOURCES:=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/libbb/*.c)
+SOURCES:=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/libbb/*.c $(SRCDIR)/termios/*.c)
 OBJECTS:=$(patsubst %.c, %.o, $(SOURCES))
 
 all: $(TARGET)

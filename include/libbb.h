@@ -23,10 +23,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-#include <poll.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <termios.h>
 
 /* Some useful definitions */
 #undef FALSE
@@ -48,60 +45,6 @@
 #define vi_main main
 #define applet_name "vi"
 #define BB_VER "1.37.0"
-
-/* "Keycodes" that report an escape sequence.
- * We use something which fits into signed char,
- * yet doesn't represent any valid Unicode character.
- * Also, -1 is reserved for error indication and we don't use it. */
-enum {
-    KEYCODE_UP = -2,
-    KEYCODE_DOWN = -3,
-    KEYCODE_RIGHT = -4,
-    KEYCODE_LEFT = -5,
-    KEYCODE_HOME = -6,
-    KEYCODE_END = -7,
-    KEYCODE_INSERT = -8,
-    KEYCODE_DELETE = -9,
-    KEYCODE_PAGEUP = -10,
-    KEYCODE_PAGEDOWN = -11,
-    KEYCODE_BACKSPACE = -12, /* Used only if Alt/Ctrl/Shifted */
-    KEYCODE_D = -13,         /* Used only if Alted */
-#if 0
-	KEYCODE_FUN1      = ,
-	KEYCODE_FUN2      = ,
-	KEYCODE_FUN3      = ,
-	KEYCODE_FUN4      = ,
-	KEYCODE_FUN5      = ,
-	KEYCODE_FUN6      = ,
-	KEYCODE_FUN7      = ,
-	KEYCODE_FUN8      = ,
-	KEYCODE_FUN9      = ,
-	KEYCODE_FUN10     = ,
-	KEYCODE_FUN11     = ,
-	KEYCODE_FUN12     = ,
-#endif
-    /* ^^^^^ Be sure that last defined value is small enough.
-	 * Current read_key() code allows going up to -32 (0xfff..fffe0).
-	 * This gives three upper bits in LSB to play with:
-	 * KEYCODE_foo values are 0xfff..fffXX, lowest XX bits are: scavvvvv,
-	 * s=0 if SHIFT, c=0 if CTRL, a=0 if ALT,
-	 * vvvvv bits are the same for same key regardless of "shift bits".
-	 */
-    // KEYCODE_SHIFT_...   = KEYCODE_...   & ~0x80,
-    KEYCODE_CTRL_RIGHT = KEYCODE_RIGHT & ~0x40,
-    KEYCODE_CTRL_LEFT = KEYCODE_LEFT & ~0x40,
-    KEYCODE_ALT_RIGHT = KEYCODE_RIGHT & ~0x20,
-    KEYCODE_ALT_LEFT = KEYCODE_LEFT & ~0x20,
-    KEYCODE_ALT_BACKSPACE = KEYCODE_BACKSPACE & ~0x20,
-    KEYCODE_ALT_D = KEYCODE_D & ~0x20,
-
-    KEYCODE_CURSOR_POS = -0x100, /* 0xfff..fff00 */
-    /* How long is the longest ESC sequence we know?
-	 * We want it big enough to be able to contain
-	 * cursor position sequence "ESC [ 9999 ; 9999 R"
-	 */
-    KEYCODE_BUFFER_SIZE = 16
-};
 
 #ifdef HAVE_PRINTF_PERCENTM
 #define STRERROR_FMT "%m"
@@ -126,19 +69,8 @@ void bb_simple_error_msg_and_die(const char *s) FAST_FUNC;
 void xfunc_die(void) FAST_FUNC;
 
 // xfuncs.c
-#define TERMIOS_CLEAR_ISIG (1 << 0)
-#define TERMIOS_RAW_CRNL_INPUT (1 << 1)
-#define TERMIOS_RAW_CRNL_OUTPUT (1 << 2)
-#define TERMIOS_RAW_CRNL (TERMIOS_RAW_CRNL_INPUT | TERMIOS_RAW_CRNL_OUTPUT)
-#define TERMIOS_RAW_INPUT (1 << 3)
 ssize_t safe_write(int fd, const void *buf, size_t count) FAST_FUNC;
 ssize_t full_write(int fd, const void *buf, size_t len) FAST_FUNC;
-int get_terminal_width_height(int fd, int *width, int *height) FAST_FUNC;
-int get_terminal_width(int fd) FAST_FUNC;
-int tcsetattr_stdin_TCSANOW(const struct termios *tp) FAST_FUNC;
-int get_termios_and_make_raw(int fd, struct termios *newterm, struct termios *oldterm, int flags) FAST_FUNC;
-int set_termios_to_raw(int fd, struct termios *oldterm, int flags) FAST_FUNC;
-int safe_poll(struct pollfd *ufds, nfds_t nfds, int timeout) FAST_FUNC;
 
 // xfuncs_printf.c
 #ifdef DMALLOC
@@ -158,9 +90,7 @@ char *xasprintf(const char *format, ...) __attribute__ ((format(printf, 1, 2))) 
 ssize_t safe_read(int fd, void *buf, size_t count) FAST_FUNC;
 ssize_t full_read(int fd, void *buf, size_t len) FAST_FUNC;
 
-// read_key.c
-int64_t read_key(int fd, char *buffer, int timeout) FAST_FUNC;
-int64_t safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
+// xstring.c
 char *last_char_is(const char *s, int c) FAST_FUNC;
 char *skip_whitespace(const char *s) FAST_FUNC;
 char *skip_non_whitespace(const char *s) FAST_FUNC;

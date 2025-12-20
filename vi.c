@@ -194,6 +194,7 @@
 // note: non-standard, "vim -H" is Hebrew mode (bidi support)
 
 #include "libbb.h"
+#include "terminal.h"
 // Should be after libbb.h: on some systems regex.h needs sys/types.h:
 #if ENABLE_FEATURE_VI_REGEX_SEARCH
 # include <regex.h>
@@ -224,41 +225,6 @@
 
 #endif
 
-#define isbackspace(c) ((c) == term_orig.c_cc[VERASE] || (c) == 8 || (c) == 127)
-
-enum {
-	MAX_TABSTOP = 32, // sanity limit
-	// User input len. Need not be extra big.
-	// Lines in file being edited *can* be bigger than this.
-	MAX_INPUT_LEN = 128,
-	// Sanity limits. We have only one buffer of this size.
-	MAX_SCR_COLS = CONFIG_FEATURE_VI_MAX_LEN,
-	MAX_SCR_ROWS = CONFIG_FEATURE_VI_MAX_LEN,
-};
-
-// VT102 ESC sequences.
-// See "Xterm Control Sequences"
-// http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
-#define ESC "\033"
-// Inverse/Normal text
-#define ESC_BOLD_TEXT ESC"[7m"
-#define ESC_NORM_TEXT ESC"[m"
-// Bell
-#define ESC_BELL "\007"
-// Clear-to-end-of-line
-#define ESC_CLEAR2EOL ESC"[K"
-// Clear-to-end-of-screen.
-// (We use default param here.
-// Full sequence is "ESC [ <num> J",
-// <num> is 0/1/2 = "erase below/above/all".)
-#define ESC_CLEAR2EOS          ESC"[J"
-// Cursor to given coordinate (1,1: top left)
-#define ESC_SET_CURSOR_POS     ESC"[%u;%uH"
-#define ESC_SET_CURSOR_TOPLEFT ESC"[H"
-//UNUSED
-//// Cursor up and down
-//#define ESC_CURSOR_UP   ESC"[A"
-//#define ESC_CURSOR_DOWN "\n"
 
 #if ENABLE_FEATURE_VI_DOT_CMD
 // cmds modifying text[]
@@ -336,23 +302,18 @@ struct globals {
 #define UNSET_READONLY_FILE(flags)      ((void)0)
 #endif
 
-	smallint editing;        // >0 while we are editing a file
-	                         // [code audit says "can be 0, 1 or 2 only"]
-	smallint cmd_mode;       // 0=command  1=insert 2=replace
-	int modified_count;      // buffer contents changed if !0
-	int last_modified_count; // = -1;
-	int cmdline_filecnt;     // how many file names on cmd line
-	int cmdcnt;              // repetition count
-	char *rstart;            // start of text in Replace mode
-	int rows, columns;	 // the terminal screen is this size
-#if ENABLE_FEATURE_VI_ASK_TERMINAL
-	int get_rowcol_error;
-#endif
-	int crow, ccol;          // cursor is on Crow x Ccol
-	int offset;              // chars scrolled off the screen to the left
-	int have_status_msg;     // is default edit status needed?
-	                         // [don't make smallint!]
-	int last_status_cksum;   // hash of current status line
+	smallint editing;           // >0 while we are editing a file
+	                            // [code audit says "can be 0, 1 or 2 only"]
+	smallint cmd_mode;          // 0=command  1=insert 2=replace
+	int modified_count;         // buffer contents changed if !0
+	int last_modified_count;    // = -1;
+	int cmdline_filecnt;        // how many file names on cmd line
+	int cmdcnt;                 // repetition count
+	char *rstart;               // start of text in Replace mode
+	int crow, ccol;             // cursor is on Crow x Ccol
+	int offset;                 // chars scrolled off the screen to the left
+	smallint have_status_msg;	// 0=no message 1=normal 2=bold
+	int last_status_cksum;      // hash of current status line
 	char *current_filename;
 #if ENABLE_FEATURE_VI_COLON_EXPAND
 	char *alt_filename;
@@ -404,18 +365,10 @@ struct globals {
 #if ENABLE_FEATURE_VI_USE_SIGNALS
 	sigjmp_buf restart;     // int_handler() jumps to location remembered here
 #endif
-	struct termios term_orig; // remember what the cooked mode was
 	int cindex;               // saved character index for up/down motion
 	smallint keep_index;      // retain saved character index
 #if ENABLE_FEATURE_VI_COLON
 	llist_t *initial_cmds;
-#endif
-	// Should be just enough to hold a key sequence,
-	// but CRASHME mode uses it as generated command buffer too
-#if ENABLE_FEATURE_VI_CRASHME
-	char readbuffer[128];
-#else
-	char readbuffer[KEYCODE_BUFFER_SIZE];
 #endif
 #define STATUS_BUFFER_LEN  200
 	char status_buffer[STATUS_BUFFER_LEN]; // messages to the user
@@ -479,8 +432,6 @@ struct globals G;
 #define cmdline_filecnt         (G.cmdline_filecnt    )
 #define cmdcnt                  (G.cmdcnt             )
 #define rstart                  (G.rstart             )
-#define rows                    (G.rows               )
-#define columns                 (G.columns            )
 #define crow                    (G.crow               )
 #define ccol                    (G.ccol               )
 #define offset                  (G.offset             )
@@ -522,11 +473,9 @@ struct globals G;
 #define regtype        (G.regtype       )
 #define mark           (G.mark          )
 #define restart        (G.restart       )
-#define term_orig      (G.term_orig     )
 #define cindex         (G.cindex        )
 #define keep_index     (G.keep_index    )
 #define initial_cmds   (G.initial_cmds  )
-#define readbuffer     (G.readbuffer    )
 #define scr_out_buf    (G.scr_out_buf   )
 #define last_modifying_cmd  (G.last_modifying_cmd )
 #define get_input_line__buf (G.get_input_line__buf)
@@ -547,136 +496,6 @@ static int crashme = 0;
 
 static void show_status_line(void);	// put a message on the bottom line
 static void status_line_bold(const char *, ...);
-
-static void show_help(void)
-{
-	puts("These features are available:"
-#if ENABLE_FEATURE_VI_SEARCH
-	"\n\tPattern searches with / and ?"
-#endif
-#if ENABLE_FEATURE_VI_DOT_CMD
-	"\n\tLast command repeat with ."
-#endif
-#if ENABLE_FEATURE_VI_YANKMARK
-	"\n\tLine marking with 'x"
-	"\n\tNamed buffers with \"x"
-#endif
-#if ENABLE_FEATURE_VI_READONLY
-	//not implemented: "\n\tReadonly if vi is called as \"view\""
-	//redundant: usage text says this too: "\n\tReadonly with -R command line arg"
-#endif
-#if ENABLE_FEATURE_VI_SET
-	"\n\tSome colon mode commands with :"
-#endif
-#if ENABLE_FEATURE_VI_SETOPTS
-	"\n\tSettable options with \":set\""
-#endif
-#if ENABLE_FEATURE_VI_USE_SIGNALS
-	"\n\tSignal catching- ^C"
-	"\n\tJob suspend and resume with ^Z"
-#endif
-#if ENABLE_FEATURE_VI_WIN_RESIZE
-	"\n\tAdapt to window re-sizes"
-#endif
-	);
-}
-
-static void write1(const char *out)
-{
-	fputs_stdout(out);
-}
-
-#if ENABLE_FEATURE_VI_WIN_RESIZE
-static int query_screen_dimensions(void)
-{
-	int err = get_terminal_width_height(STDIN_FILENO, &columns, &rows);
-	if (rows > MAX_SCR_ROWS)
-		rows = MAX_SCR_ROWS;
-	if (columns > MAX_SCR_COLS)
-		columns = MAX_SCR_COLS;
-	return err;
-}
-#else
-static ALWAYS_INLINE int query_screen_dimensions(void)
-{
-	return 0;
-}
-#endif
-
-// sleep for 'h' 1/100 seconds, return 1/0 if stdin is (ready for read)/(not ready)
-static int mysleep(int hund)
-{
-	struct pollfd pfd[1];
-
-	if (hund != 0)
-		fflush_all();
-
-	pfd[0].fd = STDIN_FILENO;
-	pfd[0].events = POLLIN;
-	return safe_poll(pfd, 1, hund*10) > 0;
-}
-
-//----- Set terminal attributes --------------------------------
-static void rawmode(void)
-{
-	// no TERMIOS_CLEAR_ISIG: leave ISIG on - allow signals
-	set_termios_to_raw(STDIN_FILENO, &term_orig, TERMIOS_RAW_CRNL);
-}
-
-static void cookmode(void)
-{
-	fflush_all();
-	tcsetattr_stdin_TCSANOW(&term_orig);
-}
-
-//----- Terminal Drawing ---------------------------------------
-// The terminal is made up of 'rows' line of 'columns' columns.
-// classically this would be 24 x 80.
-//  screen coordinates
-//  0,0     ...     0,79
-//  1,0     ...     1,79
-//  .       ...     .
-//  .       ...     .
-//  22,0    ...     22,79
-//  23,0    ...     23,79   <- status line
-
-//----- Move the cursor to row x col (count from 0, not 1) -------
-static void place_cursor(int row, int col)
-{
-	char cm1[sizeof(ESC_SET_CURSOR_POS) + sizeof(int)*3 * 2];
-
-	if (row < 0) row = 0;
-	if (row >= rows) row = rows - 1;
-	if (col < 0) col = 0;
-	if (col >= columns) col = columns - 1;
-
-	sprintf(cm1, ESC_SET_CURSOR_POS, row + 1, col + 1);
-	write1(cm1);
-}
-
-//----- Erase from cursor to end of line -----------------------
-static void clear_to_eol(void)
-{
-	write1(ESC_CLEAR2EOL);
-}
-
-static void go_bottom_and_clear_to_eol(void)
-{
-	place_cursor(rows - 1, 0);
-	clear_to_eol();
-}
-
-//----- Start standout mode ------------------------------------
-static void standout_start(void)
-{
-	write1(ESC_BOLD_TEXT);
-}
-
-//----- End standout mode --------------------------------------
-static void standout_end(void)
-{
-	write1(ESC_NORM_TEXT);
-}
 
 //----- Text Movement Routines ---------------------------------
 static char *begin_line(char *p) // return pointer to first char cur line
@@ -988,7 +807,7 @@ static void refresh(int full_screen)
 	int li, changed;
 	char *tp, *sp;		// pointer into text[] and screen[]
 
-	if (ENABLE_FEATURE_VI_WIN_RESIZE IF_FEATURE_VI_ASK_TERMINAL(&& !G.get_rowcol_error) ) {
+	if (ENABLE_FEATURE_VI_WIN_RESIZE IF_FEATURE_VI_ASK_TERMINAL(&& !T.get_rowcol_error) ) {
 		unsigned c = columns, r = rows;
 		query_screen_dimensions();
 #if ENABLE_FEATURE_VI_USE_SIGNALS
@@ -1078,7 +897,7 @@ static void refresh(int full_screen)
 static void redraw(int full_screen)
 {
 	// cursor to top,left; clear to the end of screen
-	write1(ESC_SET_CURSOR_TOPLEFT ESC_CLEAR2EOS);
+	home_and_clear_to_eos();
 	screen_erase();		// erase the internal screen buffer
 	last_status_cksum = 0;	// force status update
 	refresh(full_screen);	// this will redraw the entire display
@@ -1103,7 +922,7 @@ static void indicate_error(void)
 #endif
 	cmd_error = TRUE;
 	if (!err_method) {
-		write1(ESC_BELL);
+		bell();
 	} else {
 		flash(10);
 	}
@@ -1325,10 +1144,15 @@ static void show_status_line(void)
 	if (have_status_msg || ((cnt > 0 && last_status_cksum != cksum))) {
 		last_status_cksum = cksum;		// remember if we have seen this line
 		go_bottom_and_clear_to_eol();
-		write1(status_buffer);
+		if (have_status_msg > 1) {
+			standout_start();
+			write1(status_buffer);
+			standout_end();
+		} else {
+			write1(status_buffer);
+		}
 		if (have_status_msg) {
-			if (((int)strlen(status_buffer) - (have_status_msg - 1)) >
-					(columns - 1) ) {
+			if (((int)strlen(status_buffer)) > (columns - 1) ) {
 				have_status_msg = 0;
 				Hit_Return();
 			}
@@ -1355,15 +1179,10 @@ static void status_line_bold(const char *format, ...)
 	va_list args;
 
 	va_start(args, format);
-	strcpy(status_buffer, ESC_BOLD_TEXT);
-	vsnprintf(status_buffer + (sizeof(ESC_BOLD_TEXT)-1),
-		STATUS_BUFFER_LEN - sizeof(ESC_BOLD_TEXT) - sizeof(ESC_NORM_TEXT),
-		format, args
-	);
-	strcat(status_buffer, ESC_NORM_TEXT);
+	vsnprintf(status_buffer, STATUS_BUFFER_LEN, format, args);
 	va_end(args);
 
-	have_status_msg = 1 + (sizeof(ESC_BOLD_TEXT)-1) + (sizeof(ESC_NORM_TEXT)-1);
+	have_status_msg = 2;
 }
 static void status_line_bold_errno(const char *fn)
 {
@@ -4801,27 +4620,7 @@ static void edit_file(char *fn)
 #endif
 
 	editing = 1;	// 0 = exit, 1 = one file, 2 = multiple files
-	rawmode();
-	rows = 24;
-	columns = 80;
-	IF_FEATURE_VI_ASK_TERMINAL(G.get_rowcol_error =) query_screen_dimensions();
-#if ENABLE_FEATURE_VI_ASK_TERMINAL
-	if (G.get_rowcol_error /* TODO? && no input on stdin */) {
-		uint64_t k;
-		write1(ESC"[999;999H" ESC"[6n");
-		fflush_all();
-		k = safe_read_key(STDIN_FILENO, readbuffer, /*timeout_ms:*/ 100);
-		if ((int32_t)k == KEYCODE_CURSOR_POS) {
-			uint32_t rc = (k >> 32);
-			columns = (rc & 0x7fff);
-			if (columns > MAX_SCR_COLS)
-				columns = MAX_SCR_COLS;
-			rows = ((rc >> 16) & 0x7fff);
-			if (rows > MAX_SCR_ROWS)
-				rows = MAX_SCR_ROWS;
-		}
-	}
-#endif
+	init_term();
 	new_screen(rows, columns);	// get memory for virtual screen
 	init_text_buffer(fn);
 
@@ -5050,8 +4849,7 @@ int vi_main(int argc, char **argv)
 		}
 	}
 #endif
-	// "Save cursor, use alternate screen buffer, clear screen"
-	write1(ESC"[?1049h");
+	alternate_screen_buffer_start();
 	// This is the main file handling loop
 	optind = 0;
 	while (1) {
@@ -5061,8 +4859,7 @@ int vi_main(int argc, char **argv)
 		if (optind >= cmdline_filecnt)
 			break;
 	}
-	// "Use normal screen buffer, restore cursor"
-	write1(ESC"[?1049l");
+	alternate_screen_buffer_end();
 
 	return 0;
 }

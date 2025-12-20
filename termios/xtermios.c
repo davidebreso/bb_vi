@@ -1,13 +1,210 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Utility routines.
+ * Low level terminal interface routines.
  *
- * Copyright (C) 2008 Rob Landley <rob@landley.net>
- * Copyright (C) 2008 Denys Vlasenko <vda.linux@googlemail.com>
+ * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 2006 Rob Landley
+ * Copyright (C) 2006 Denys Vlasenko
  *
  * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 #include "libbb.h"
+#include "platform.h"
+#include "terminal.h"
+
+// VT102 ESC sequences.
+// See "Xterm Control Sequences"
+// http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+#define ESC "\033"
+// Inverse/Normal text
+#define ESC_BOLD_TEXT ESC"[7m"
+#define ESC_NORM_TEXT ESC"[m"
+// Bell
+#define ESC_BELL "\007"
+// Clear-to-end-of-line
+#define ESC_CLEAR2EOL ESC"[K"
+// Clear-to-end-of-screen.
+// (We use default param here.
+// Full sequence is "ESC [ <num> J",
+// <num> is 0/1/2 = "erase below/above/all".)
+#define ESC_CLEAR2EOS          ESC"[J"
+// Cursor to given coordinate (1,1: top left)
+#define ESC_SET_CURSOR_POS     ESC"[%u;%uH"
+#define ESC_SET_CURSOR_TOPLEFT ESC"[H"
+//UNUSED
+//// Cursor up and down
+//#define ESC_CURSOR_UP   ESC"[A"
+//#define ESC_CURSOR_DOWN "\n"
+
+#define TERMIOS_CLEAR_ISIG (1 << 0)
+#define TERMIOS_RAW_CRNL_INPUT (1 << 1)
+#define TERMIOS_RAW_CRNL_OUTPUT (1 << 2)
+#define TERMIOS_RAW_CRNL (TERMIOS_RAW_CRNL_INPUT | TERMIOS_RAW_CRNL_OUTPUT)
+#define TERMIOS_RAW_INPUT (1 << 3)
+
+struct term T;
+
+static int wh_helper(int value, int def_val, const char *env_name, int *err) {
+    /* Envvars override even if "value" from ioctl is valid (>0).
+	 * Rationale: it's impossible to guess what user wants.
+	 * For example: "man CMD | ...": should "man" format output
+	 * to stdout's width? stdin's width? /dev/tty's width? 80 chars?
+	 * We _cant_ know it. If "..." saves text for e.g. email,
+	 * then it's probably 80 chars.
+	 * If "..." is, say, "grep -v DISCARD | $PAGER", then user
+	 * would prefer his tty's width to be used!
+	 *
+	 * Since we don't know, at least allow user to do this:
+	 * "COLUMNS=80 man CMD | ..."
+	 */
+    char *s = getenv(env_name);
+    if (s) {
+        value = atoi(s);
+        /* If LINES/COLUMNS are set, pretend that there is
+		 * no error getting w/h, this prevents some ugly
+		 * cursor tricks by our callers */
+        *err = 0;
+    }
+
+    if (value <= 1 || value >= 30000)
+        value = def_val;
+    return value;
+}
+
+/* It is perfectly ok to pass in a NULL for either width or for
+ * height, in which case that value will not be set.  */
+static int FAST_FUNC get_terminal_width_height(int fd, int *width, int *height) {
+    struct winsize win;
+    int err;
+    int close_me = -1;
+
+    if (fd == -1) {
+        if (isatty(STDOUT_FILENO))
+            fd = STDOUT_FILENO;
+        else if (isatty(STDERR_FILENO))
+            fd = STDERR_FILENO;
+        else if (isatty(STDIN_FILENO))
+            fd = STDIN_FILENO;
+        else
+            close_me = fd = open("/dev/tty", O_RDONLY);
+    }
+
+    win.ws_row = 0;
+    win.ws_col = 0;
+    /* I've seen ioctl returning 0, but row/col is (still?) 0.
+	 * We treat that as an error too.  */
+    err = ioctl(fd, TIOCGWINSZ, &win) != 0 || win.ws_row == 0;
+    if (height)
+        *height = wh_helper(win.ws_row, 24, "LINES", &err);
+    if (width)
+        *width = wh_helper(win.ws_col, 80, "COLUMNS", &err);
+
+    if (close_me >= 0)
+        close(close_me);
+
+    return err;
+}
+
+static int FAST_FUNC tcsetattr_stdin_TCSANOW(const struct termios *tp) {
+    return tcsetattr(STDIN_FILENO, TCSANOW, tp);
+}
+
+static int FAST_FUNC get_termios_and_make_raw(int fd, struct termios *newterm, struct termios *oldterm, int flags) {
+    //TODO: slattach, shell read might be adapted to use this too: grep for "tcsetattr", "[VTIME] = 0"
+    int r;
+
+    memset(oldterm, 0, sizeof(*oldterm)); /* paranoia */
+    r = tcgetattr(fd, oldterm);
+    *newterm = *oldterm;
+
+    /* Turn off buffered input (ICANON)
+	 * Turn off echoing (ECHO)
+	 * and separate echoing of newline (ECHONL, normally off anyway)
+	 */
+    newterm->c_lflag &= ~(ICANON | ECHO | ECHONL);
+    if (flags & TERMIOS_CLEAR_ISIG) {
+        /* dont recognize INT/QUIT/SUSP chars */
+        newterm->c_lflag &= ~ISIG;
+    }
+    /* reads will block only if < 1 char is available */
+    newterm->c_cc[VMIN] = 1;
+    /* no timeout (reads block forever) */
+    newterm->c_cc[VTIME] = 0;
+    /* IXON, IXOFF, and IXANY:
+ * IXOFF=1: sw flow control is enabled on input queue:
+ * tty transmits a STOP char when input queue is close to full
+ * and transmits a START char when input queue is nearly empty.
+ * IXON=1: sw flow control is enabled on output queue:
+ * tty will stop sending if STOP char is received,
+ * and resume sending if START is received, or if any char
+ * is received and IXANY=1.
+ */
+    if (flags & TERMIOS_RAW_CRNL_INPUT) {
+        /* IXON=0: XON/XOFF chars are treated as normal chars (why we do this?) */
+        /* dont convert CR to NL on input */
+        newterm->c_iflag &= ~(IXON | ICRNL);
+    }
+    if (flags & TERMIOS_RAW_CRNL_OUTPUT) {
+        /* dont convert NL to CR+NL on output */
+        newterm->c_oflag &= ~(ONLCR);
+        /* Maybe clear more c_oflag bits? Usually, only OPOST and ONLCR are set.
+		 * OPOST  Enable output processing (reqd for OLCUC and *NL* bits to work)
+		 * OLCUC  Map lowercase characters to uppercase on output.
+		 * OCRNL  Map CR to NL on output.
+		 * ONOCR  Don't output CR at column 0.
+		 * ONLRET Don't output CR.
+		 */
+    }
+    if (flags & TERMIOS_RAW_INPUT) {
+#ifndef IMAXBEL
+#define IMAXBEL 0
+#endif
+#ifndef IUCLC
+#define IUCLC 0
+#endif
+#ifndef IXANY
+#define IXANY 0
+#endif
+        /* IXOFF=0: disable sending XON/XOFF if input buf is full
+		 * IXON=0: input XON/XOFF chars are not special
+		 * BRKINT=0: dont send SIGINT on break
+		 * IMAXBEL=0: dont echo BEL on input line too long
+		 * INLCR,ICRNL,IUCLC: dont convert anything on input
+		 */
+        newterm->c_iflag &= ~(IXOFF | IXON | IXANY | BRKINT | INLCR | ICRNL | IUCLC | IMAXBEL);
+    }
+    return r;
+}
+
+static int FAST_FUNC set_termios_to_raw(int fd, struct termios *oldterm, int flags) {
+    struct termios newterm;
+
+    get_termios_and_make_raw(fd, &newterm, oldterm, flags);
+    return tcsetattr(fd, TCSANOW, &newterm);
+}
+
+/* Wrapper which restarts poll on EINTR or ENOMEM.
+ * On other errors does perror("poll") and returns.
+ * Warning! May take longer than timeout_ms to return! */
+int FAST_FUNC safe_poll(struct pollfd *ufds, nfds_t nfds, int timeout) {
+    while (1) {
+        int n = poll(ufds, nfds, timeout);
+        if (n >= 0)
+            return n;
+        /* Make sure we inch towards completion */
+        if (timeout > 0)
+            timeout--;
+        /* E.g. strace causes poll to return this */
+        if (errno == EINTR)
+            continue;
+        /* Kernel is very low on memory. Retry. */
+        /* I doubt many callers would handle this correctly! */
+        if (errno == ENOMEM)
+            continue;
+        bb_simple_error_msg("poll");
+        return n;
+    }
+}
 
 int64_t FAST_FUNC read_key(int fd, char *buffer, int timeout) {
     struct pollfd pfd;
@@ -360,31 +557,182 @@ int64_t FAST_FUNC safe_read_key(int fd, char *buffer, int timeout)
 	return r;
 }
 
-/* Find out if the last character of a string matches the one given */
-char *FAST_FUNC last_char_is(const char *s, int c) {
-    if (!s[0])
-        return NULL;
-    while (s[1])
-        s++;
-    return (*s == (char)c) ? (char *)s : NULL;
+void FAST_FUNC show_help(void)
+{
+	puts("These features are available:"
+#if ENABLE_FEATURE_VI_SEARCH
+	"\n\tPattern searches with / and ?"
+#endif
+#if ENABLE_FEATURE_VI_DOT_CMD
+	"\n\tLast command repeat with ."
+#endif
+#if ENABLE_FEATURE_VI_YANKMARK
+	"\n\tLine marking with 'x"
+	"\n\tNamed buffers with \"x"
+#endif
+#if ENABLE_FEATURE_VI_READONLY
+	//not implemented: "\n\tReadonly if vi is called as \"view\""
+	//redundant: usage text says this too: "\n\tReadonly with -R command line arg"
+#endif
+#if ENABLE_FEATURE_VI_SET
+	"\n\tSome colon mode commands with :"
+#endif
+#if ENABLE_FEATURE_VI_SETOPTS
+	"\n\tSettable options with \":set\""
+#endif
+#if ENABLE_FEATURE_VI_USE_SIGNALS
+	"\n\tSignal catching- ^C"
+	"\n\tJob suspend and resume with ^Z"
+#endif
+#if ENABLE_FEATURE_VI_WIN_RESIZE
+	"\n\tAdapt to window re-sizes"
+#endif
+	);
 }
 
-char *FAST_FUNC skip_whitespace(const char *s) {
-    /* In POSIX/C locale (the only locale we care about: do we REALLY want
-	 * to allow Unicode whitespace in, say, .conf files? nuts!)
-	 * isspace is only these chars: "\t\n\v\f\r" and space.
-	 * "\t\n\v\f\r" happen to have ASCII codes 9,10,11,12,13.
-	 * Use that.
-	 */
-    while (*s == ' ' || (unsigned char)(*s - 9) <= (13 - 9))
-        s++;
-
-    return (char *)s;
+void FAST_FUNC write1(const char *out)
+{
+	fputs_stdout(out);
 }
 
-char *FAST_FUNC skip_non_whitespace(const char *s) {
-    while (*s != '\0' && *s != ' ' && (unsigned char)(*s - 9) > (13 - 9))
-        s++;
+#if ENABLE_FEATURE_VI_WIN_RESIZE
+int FAST_FUNC query_screen_dimensions(void)
+{
+	int err = get_terminal_width_height(STDIN_FILENO, &columns, &rows);
+	if (rows > MAX_SCR_ROWS)
+		rows = MAX_SCR_ROWS;
+	if (columns > MAX_SCR_COLS)
+		columns = MAX_SCR_COLS;
+	return err;
+}
+#else
+int FAST_FUNCT query_screen_dimensions(void)
+{
+	return 0;
+}
+#endif
 
-    return (char *)s;
+// sleep for 'h' 1/100 seconds, return 1/0 if stdin is (ready for read)/(not ready)
+int FAST_FUNC mysleep(int hund)
+{
+	struct pollfd pfd[1];
+
+	if (hund != 0)
+		fflush_all();
+
+	pfd[0].fd = STDIN_FILENO;
+	pfd[0].events = POLLIN;
+	return safe_poll(pfd, 1, hund*10) > 0;
+}
+
+//----- Set terminal attributes --------------------------------
+void FAST_FUNC rawmode(void)
+{
+	// no TERMIOS_CLEAR_ISIG: leave ISIG on - allow signals
+	set_termios_to_raw(STDIN_FILENO, &term_orig, TERMIOS_RAW_CRNL);
+}
+
+void FAST_FUNC cookmode(void)
+{
+	fflush_all();
+	tcsetattr_stdin_TCSANOW(&term_orig);
+}
+
+//----- Terminal Drawing ---------------------------------------
+// The terminal is made up of 'rows' line of 'columns' columns.
+// classically this would be 24 x 80.
+//  screen coordinates
+//  0,0     ...     0,79
+//  1,0     ...     1,79
+//  .       ...     .
+//  .       ...     .
+//  22,0    ...     22,79
+//  23,0    ...     23,79   <- status line
+
+//----- Move the cursor to row x col (count from 0, not 1) -------
+void FAST_FUNC place_cursor(int row, int col)
+{
+	char cm1[sizeof(ESC_SET_CURSOR_POS) + sizeof(int)*3 * 2];
+
+	if (row < 0) row = 0;
+	if (row >= rows) row = rows - 1;
+	if (col < 0) col = 0;
+	if (col >= columns) col = columns - 1;
+
+	sprintf(cm1, ESC_SET_CURSOR_POS, row + 1, col + 1);
+	write1(cm1);
+}
+
+//----- Erase from cursor to end of line -----------------------
+void FAST_FUNC clear_to_eol(void)
+{
+	write1(ESC_CLEAR2EOL);
+}
+
+//----- Go to upper left corner and erase screen ---------------
+void FAST_FUNC home_and_clear_to_eos(void)
+{
+	write1(ESC_SET_CURSOR_TOPLEFT ESC_CLEAR2EOS);
+}
+
+void FAST_FUNC go_bottom_and_clear_to_eol(void)
+{
+	place_cursor(rows - 1, 0);
+	clear_to_eol();
+}
+
+//----- Start standout mode ------------------------------------
+void FAST_FUNC standout_start(void)
+{
+	write1(ESC_BOLD_TEXT);
+}
+
+//----- End standout mode --------------------------------------
+void FAST_FUNC standout_end(void)
+{
+	write1(ESC_NORM_TEXT);
+}
+
+//----- Ring a bell --------------------------------------------
+void FAST_FUNC bell(void)
+{
+	write1(ESC_BELL);
+}
+
+//----- Initialize terminal ------------------------------------
+void FAST_FUNC init_term(void)
+{
+	rawmode();
+	rows = 24;
+	columns = 80;
+	IF_FEATURE_VI_ASK_TERMINAL(T.get_rowcol_error =) query_screen_dimensions();
+#if ENABLE_FEATURE_VI_ASK_TERMINAL
+	if (T.get_rowcol_error /* TODO? && no input on stdin */) {
+		uint64_t k;
+		write1(ESC"[999;999H" ESC"[6n");
+		fflush_all();
+		k = safe_read_key(STDIN_FILENO, readbuffer, /*timeout_ms:*/ 100);
+		if ((int32_t)k == KEYCODE_CURSOR_POS) {
+			uint32_t rc = (k >> 32);
+			columns = (rc & 0x7fff);
+			if (columns > MAX_SCR_COLS)
+				columns = MAX_SCR_COLS;
+			rows = ((rc >> 16) & 0x7fff);
+			if (rows > MAX_SCR_ROWS)
+				rows = MAX_SCR_ROWS;
+		}
+	}
+#endif
+}
+
+void FAST_FUNC alternate_screen_buffer_start(void)
+{
+	// "Save cursor, use alternate screen buffer, clear screen"
+	write1(ESC"[?1049h");
+}
+
+void FAST_FUNC alternate_screen_buffer_end(void)
+{
+	// "Use normal screen buffer, restore cursor"
+	write1(ESC"[?1049l");
 }
