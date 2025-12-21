@@ -12,7 +12,7 @@
 #include "platform.h"
 #include "terminal.h"
 
-#include <conio.h>
+#include <bios.h>
 #include <graph.h>
 #include <i86.h>
 
@@ -24,10 +24,8 @@ int FAST_FUNC safe_read_key(int timeout)
 {
 	int r;
 
-	if ((r = getch()) == 0) {
-		r = getch() << 8;
-	}
-	return r;
+	r = _bios_keybrd(_KEYBRD_READ);
+	return (r & 0x00FF ? r & 0x00FF : r);
 }
 
 void FAST_FUNC show_help(void)
@@ -138,7 +136,6 @@ void FAST_FUNC clear_to_eol(void)
 	struct rccoord old_pos = _gettextposition();
 	int len = columns - old_pos.col + 1;
 
-	memset(clrbuf, ' ', len);
 	_outmem(clrbuf, len);
 	_settextposition(old_pos.row, old_pos.col);
 }
@@ -147,19 +144,20 @@ void FAST_FUNC clear_to_eol(void)
 //----- Go to upper left corner and erase screen ---------------
 void FAST_FUNC home_and_clear_to_eos(void)
 {
-	_clearscreen(_GWINDOW);
+	_clearscreen(_GCLEARSCREEN);
+	_settextposition(1, 1);
 }
 
 void FAST_FUNC go_bottom_and_clear_to_eol(void)
 {
-	place_cursor(rows - 1, 0);
+	_settextposition(rows, 1);
 	clear_to_eol();
 }
 
 void FAST_FUNC insert_line(void)
 {
 	_scrolltextwindow(_GSCROLLUP);
-	place_cursor(rows - 1, 0);
+	_settextposition(rows, 1);
 }
 
 //----- Start standout mode ------------------------------------
@@ -189,6 +187,7 @@ void FAST_FUNC init_term(void)
 {
 	struct videoconfig vc;
 
+	memset(clrbuf, ' ', MAX_SCR_COLS);
 	rawmode();
 	_getvideoconfig(&vc);
 	rows = vc.numtextrows;

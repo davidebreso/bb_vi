@@ -13,6 +13,7 @@
 #include "platform.h"
 #include "autoconf.h"
 
+#include <bios.h>
 #include <graph.h>
 
 enum {
@@ -91,7 +92,7 @@ extern struct term T;
 #endif
 
 #define isbackspace(c)					((c) == 8 || (c) == 127)
-#define no_input()							(kbhit() == 0)
+#define no_input()							(_bios_keybrd(_KEYBRD_READY) == 0)
 
 // xconio.c
 int safe_read_key(int timeout) FAST_FUNC;

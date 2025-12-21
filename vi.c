@@ -313,7 +313,6 @@ struct globals {
 	int crow, ccol;             // cursor is on Crow x Ccol
 	int offset;                 // chars scrolled off the screen to the left
 	smallint have_status_msg;	// 0=no message 1=normal 2=bold
-	int last_status_cksum;      // hash of current status line
 	char *current_filename;
 #if ENABLE_FEATURE_VI_COLON_EXPAND
 	char *alt_filename;
@@ -437,7 +436,6 @@ struct globals G;
 #define offset                  (G.offset             )
 #define status_buffer           (G.status_buffer      )
 #define have_status_msg         (G.have_status_msg    )
-#define last_status_cksum       (G.last_status_cksum  )
 #define current_filename        (G.current_filename   )
 #define alt_filename            (G.alt_filename       )
 #define screen                  (G.screen             )
@@ -899,9 +897,7 @@ static void refresh(int full_screen)
 static void redraw(int full_screen)
 {
 	// cursor to top,left; clear to the end of screen
-	home_and_clear_to_eos();
 	screen_erase();		// erase the internal screen buffer
-	last_status_cksum = 0;	// force status update
 	refresh(full_screen);	// this will redraw the entire display
 	show_status_line();
 }
@@ -1022,9 +1018,9 @@ static char *get_input_line(const char *prompt)
 	int i;
 
 	strcpy(buf, prompt);
-	last_status_cksum = 0;	// force status update
-	go_bottom_and_clear_to_eol();
+	place_cursor(rows - 1, 0);
 	write1(buf);      // write out the :, /, or ? prompt
+	clear_to_eol();
 
 	i = strlen(buf);
 	while (i < MAX_INPUT_LEN - 1) {
@@ -1038,10 +1034,11 @@ static char *get_input_line(const char *prompt)
 		if (isbackspace(c)) {
 			// user wants to erase prev char
 			buf[--i] = '\0';
-			go_bottom_and_clear_to_eol();
+			place_cursor(rows - 1, i);
+			clear_to_eol();
 			if (i <= 0) // user backs up before b-o-l, exit
 				break;
-			write1(buf);
+			// write1(buf);
 		} else if (c > 0 && c < 256) { // exclude Unicode
 			// (TODO: need to handle Unicode)
 			buf[i] = c;
@@ -1129,28 +1126,17 @@ static int format_edit_status(void)
 #undef tot
 }
 
-static int bufsum(char *buf, int count)
-{
-	int sum = 0;
-	char *e = buf + count;
-	while (buf < e)
-		sum += (unsigned char) *buf++;
-	return sum;
-}
-
 static void show_status_line(void)
 {
-	int cnt = 0, cksum = 0;
+	int cnt = 0;
 
 	// either we already have an error or status message, or we
 	// create one.
 	if (!have_status_msg) {
 		cnt = format_edit_status();
-		cksum = bufsum(status_buffer, cnt);
 	}
-	if (have_status_msg || ((cnt > 0 && last_status_cksum != cksum))) {
-		last_status_cksum = cksum;		// remember if we have seen this line
-		go_bottom_and_clear_to_eol();
+	if (have_status_msg || ((cnt > 0))) {
+		place_cursor(rows - 1, 0);
 		if (have_status_msg > 1) {
 			standout_start();
 			write1(status_buffer);
@@ -1158,6 +1144,7 @@ static void show_status_line(void)
 		} else {
 			write1(status_buffer);
 		}
+		clear_to_eol();
 		if (have_status_msg) {
 			if (((int)strlen(status_buffer)) > (columns - 1) ) {
 				have_status_msg = 0;
@@ -1960,7 +1947,6 @@ static char *char_insert(char *p, char c, int undo) // insert the char c at 'p'
 		undo_queue_commit();
 		cmdcnt = 0;
 		end_cmd_q();	// stop adding to q
-		last_status_cksum = 0;	// force status update
 		if ((dot > text) && (p[-1] != '\n')) {
 			p--;
 		}
@@ -2658,7 +2644,6 @@ static void colon(char *buf)
 		return;
 	}
 	if (strncmp(p, "file", cnt) == 0) {
-		last_status_cksum = 0;	// force status update
 		return;
 	}
 	if (sscanf(p, "%d", &cnt) > 0) {
@@ -2850,9 +2835,6 @@ static void colon(char *buf)
 			if (exp == NULL)
 				goto ret;
 			update_filename(exp);
-		} else {
-			// user wants file status info
-			last_status_cksum = 0;	// force status update
 		}
 	} else if (strncmp(cmd, "features", i) == 0) {	// what features are available
 		// print out values of all features
@@ -2867,7 +2849,6 @@ static void colon(char *buf)
 			r = end_line(dot);
 		}
 		go_bottom_and_clear_to_eol();
-		// insert_line();
 		for (; q <= r; q++) {
 			int c_is_no_print;
 
@@ -3360,7 +3341,6 @@ static void tstp_handler(int sig UNUSED_PARAM)
 
 	// we have been "continued" with SIGCONT, restore screen and termios
 	rawmode(); // terminal to "raw"
-	last_status_cksum = 0; // force status update
 	redraw(TRUE); // re-draw the screen
 
 	errno = save_errno;
@@ -3633,7 +3613,6 @@ static void do_cmd(int c)
 		dot_scroll(rows - 2, 1);
 		break;
 	case 7:			// ctrl-G  show current status
-		last_status_cksum = 0;	// force status update
 		break;
 	case 'h':			// h- move left
 	case KEYCODE_LEFT:	// cursor key Left
@@ -3668,6 +3647,7 @@ static void do_cmd(int c)
 		break;
 	case 12:			// ctrl-L  force redraw whole screen
 	case 18:			// ctrl-R  force redraw
+		home_and_clear_to_eos();
 		redraw(TRUE);	// this will redraw the entire display
 		break;
 	case 21:			// ctrl-U  scroll up half screen
@@ -3682,7 +3662,6 @@ static void do_cmd(int c)
 		cmd_mode = 0;	// stop inserting
 		undo_queue_commit();
 		end_cmd_q();
-		last_status_cksum = 0;	// force status update
 		break;
 	case ' ':			// move right
 	case 'l':			// move right
