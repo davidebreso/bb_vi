@@ -187,21 +187,35 @@ void FAST_FUNC bell(void)
 //----- Initialize terminal ------------------------------------
 void FAST_FUNC init_term(void)
 {
-	rawmode();
-	rows = 25;
-	columns = 80;
-	query_screen_dimensions();
+	struct videoconfig vc;
 
+	rawmode();
+	_getvideoconfig(&vc);
+	rows = vc.numtextrows;
+	columns = vc.numtextcols;
+	pages = vc.numvideopages;
 }
 
 void FAST_FUNC alternate_screen_buffer_start(void)
 {
 	// "Save cursor, use alternate screen buffer, clear screen"
-	// write1(ESC"[?1049h");
+	if (pages > 1) {
+		int newpage;
+		oldpage = _getvisualpage();
+		oldpos = _gettextposition();
+		newpage = (oldpage == 0 ? 1 : 0);
+		_setvisualpage(newpage);
+		_setactivepage(newpage);
+		_clearscreen(_GCLEARSCREEN);
+	}
 }
 
 void FAST_FUNC alternate_screen_buffer_end(void)
 {
 	// "Use normal screen buffer, restore cursor"
-	// write1(ESC"[?1049l");
+	if (pages > 1){
+		_setvisualpage(oldpage);
+		_setactivepage(oldpage);
+		_settextposition(oldpos.row, oldpos.col);
+	}
 }

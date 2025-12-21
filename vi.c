@@ -4633,7 +4633,6 @@ static void edit_file(char *fn)
 #endif
 
 	editing = 1;	// 0 = exit, 1 = one file, 2 = multiple files
-	init_term();
 	new_screen(rows, columns);	// get memory for virtual screen
 	init_text_buffer(fn);
 
@@ -4732,7 +4731,6 @@ static void edit_file(char *fn)
 	//-------------------------------------------------------------------
 
 	go_bottom_and_clear_to_eol();
-	cookmode();
 #undef cur_line
 }
 
@@ -4862,6 +4860,7 @@ int vi_main(int argc, char **argv)
 		}
 	}
 #endif
+	init_term();
 	alternate_screen_buffer_start();
 	// This is the main file handling loop
 	optind = 0;
@@ -4872,6 +4871,7 @@ int vi_main(int argc, char **argv)
 		if (optind >= cmdline_filecnt)
 			break;
 	}
+	cookmode();
 	alternate_screen_buffer_end();
 
 	return 0;

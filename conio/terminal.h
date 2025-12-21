@@ -13,6 +13,8 @@
 #include "platform.h"
 #include "autoconf.h"
 
+#include <graph.h>
+
 enum {
 	MAX_TABSTOP = 32, // sanity limit
 	// User input len. Need not be extra big.
@@ -67,8 +69,11 @@ enum {
 };
 
 struct term {
- 	int rows, columns;	 // the terminal screen is this size
-	// Should be just enough to hold a key sequence,
+ 	int rows, columns;	 	    // the terminal screen is this size
+ 	int pages;						    // number of video pages
+ 	int oldpage;					    // active page at startup
+ 	struct rccoord oldpos;		// cursor position at startup
+ 	// Should be just enough to hold a key sequence,
 	// but CRASHME mode uses it as generated command buffer too
 #if ENABLE_FEATURE_VI_CRASHME
 	char readbuffer[128];
@@ -80,6 +85,9 @@ struct term {
 extern struct term T;
 #define rows                    (T.rows               )
 #define columns                 (T.columns            )
+#define pages                   (T.pages            )
+#define oldpage                 (T.oldpage            )
+#define oldpos                  (T.oldpos            )
 #define readbuffer              (T.readbuffer         )
 
 #define isbackspace(c)	((c) == 8 || (c) == 127)
