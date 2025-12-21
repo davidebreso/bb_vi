@@ -154,6 +154,7 @@ typedef unsigned smalluint;
 #undef HAVE_STRCHRNUL
 #undef HAVE_STRNDUP
 #undef HAVE_VASPRINTF
+#undef HAVE_PRINTF_PERCENTM
 #include <strings.h>
 #include <io.h>
 #include <tchar.h>
@@ -182,7 +183,6 @@ typedef unsigned smalluint;
 #endif
 
 #if defined(__FreeBSD__)
-/* users say mempcpy is not present in FreeBSD 9.x */
 #undef HAVE_PRINTF_PERCENTM
 #include <osreldate.h>
 #if __FreeBSD_version < 1000029

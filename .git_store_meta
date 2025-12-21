@@ -10,7 +10,7 @@ conio/autoconf.h	f	2025-12-21T10:50:05Z
 conio/terminal.h	f	2025-12-21T11:21:15Z
 conio/xconio.c	f	2025-12-21T11:26:02Z
 include/libbb.h	f	2025-12-20T19:34:09Z
-include/platform.h	f	2025-12-20T14:26:08Z
+include/platform.h	f	2025-12-21T12:19:52Z
 libbb/compare_string_array.c	f	2025-12-13T20:09:22Z
 libbb/concat_path_file.c	f	2025-12-13T19:46:37Z
 libbb/llist.c	f	2025-12-13T22:47:10Z
