@@ -1098,7 +1098,8 @@ static int format_edit_status(void)
 	//   -------------    ~~ ----------
 	//    total lines            100
 	if (tot > 0) {
-		percent = (100 * cur) / tot;
+		// Use at least 32bit precision to compute percent
+		percent = (int)((100L * cur) / tot);
 	} else {
 		cur = tot = 0;
 		percent = 100;
