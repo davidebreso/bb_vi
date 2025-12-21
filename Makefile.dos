@@ -4,9 +4,9 @@ OBJDIR:=$(TOP_DIR)
 TARGET:=vi.exe
 CC=owcc
 
-CFLAGS+=-Os -Wall -Wextra -b dos -mcmodel=s
+CFLAGS+=-Os -Wall -Wextra -b dos -mcmodel=s -fno-stack-check
 CFLAGS+=-I$(TOP_DIR)/include -I$(TOP_DIR)/conio
-LDFLAGS+=
+LDFLAGS+=-fm
 
 SOURCES:=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/libbb/*.c $(SRCDIR)/conio/*.c)
 OBJECTS:=$(patsubst %.c, %.o, $(SOURCES))
@@ -17,7 +17,7 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
 
 clean:
-	rm -f *.o libbb/*.o $(TARGET)
+	rm -f *.o libbb/*.o conio/*.o $(TARGET)
 
 lint:
 	find $(PRODUCT_DIR) -iname "*.[ch]" | xargs clang-format -i

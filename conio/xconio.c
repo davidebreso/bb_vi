@@ -20,7 +20,7 @@
 struct term T;
 static char clrbuf[MAX_SCR_COLS];
 
-int FAST_FUNC safe_read_key(int fd, char *buffer, int timeout)
+int FAST_FUNC safe_read_key(int timeout)
 {
 	int r;
 
@@ -102,16 +102,11 @@ int FAST_FUNC mysleep(int hund)
 void FAST_FUNC rawmode(void)
 {
     _wrapon(_GWRAPOFF);
-    // raw_set_stdio(1);
-    // setmode(STDIN_FILENO, O_BINARY);
-    // setmode(STDOUT_FILENO, O_BINARY);
 }
 
 void FAST_FUNC cookmode(void)
 {
-	// fflush_all();
     _wrapon(_GWRAPON);
- //    raw_set_stdio(0);
 }
 
 //----- Terminal Drawing ---------------------------------------

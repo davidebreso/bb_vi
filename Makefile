@@ -17,7 +17,7 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
 
 clean:
-	rm -f *.o libbb/*.o $(TARGET)
+	rm -f *.o libbb/*.o termios/*.o $(TARGET)
 
 lint:
 	find $(PRODUCT_DIR) -iname "*.[ch]" | xargs clang-format -i

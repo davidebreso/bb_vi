@@ -85,7 +85,7 @@ extern struct term T;
 #define isbackspace(c)	((c) == 8 || (c) == 127)
 
 // xconio.c
-int safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
+int safe_read_key(int timeout) FAST_FUNC;
 void show_help(void) FAST_FUNC;
 int bb_putchar(int ch) FAST_FUNC;
 void write1(const char *out) FAST_FUNC;

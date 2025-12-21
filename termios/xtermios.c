@@ -547,12 +547,12 @@ got_all:
     goto start_over;
 }
 
-int64_t FAST_FUNC safe_read_key(int fd, char *buffer, int timeout)
+int64_t FAST_FUNC safe_read_key(int timeout)
 {
 	int64_t r;
 	do {
 		/* errno = 0; - read_key does this itself */
-		r = read_key(fd, buffer, timeout);
+		r = read_key(STDIN_FILENO, readbuffer, timeout);
 	} while (errno == EINTR);
 	return r;
 }
@@ -725,7 +725,7 @@ void FAST_FUNC init_term(void)
 		uint64_t k;
 		write1(ESC"[999;999H" ESC"[6n");
 		fflush_all();
-		k = safe_read_key(STDIN_FILENO, readbuffer, /*timeout_ms:*/ 100);
+		k = safe_read_key(/*timeout_ms:*/ 100);
 		if ((int32_t)k == KEYCODE_CURSOR_POS) {
 			uint32_t rc = (k >> 32);
 			columns = (rc & 0x7fff);

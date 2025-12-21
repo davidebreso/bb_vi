@@ -105,8 +105,7 @@ extern struct term T;
 #define isbackspace(c)	((c) == term_orig.c_cc[VERASE] || (c) == 8 || (c) == 127)
 
 // xtermios.c
-int64_t read_key(int fd, char *buffer, int timeout) FAST_FUNC;
-int64_t safe_read_key(int fd, char *buffer, int timeout) FAST_FUNC;
+int64_t safe_read_key(int timeout) FAST_FUNC;
 void show_help(void) FAST_FUNC;
 int bb_putchar(int ch) FAST_FUNC;
 void write1(const char *out) FAST_FUNC;

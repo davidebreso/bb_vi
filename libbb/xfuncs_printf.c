@@ -75,8 +75,10 @@ char *FAST_FUNC xstrdup(const char *s) {
 char *FAST_FUNC xstrndup(const char *s, int n) {
     char *t;
 
-    if (ENABLE_DEBUG && s == NULL)
+#if ENABLE_DEBUG
+    if (s == NULL)
         bb_simple_error_msg_and_die("xstrndup bug");
+#endif
 
     t = strndup(s, n);
 

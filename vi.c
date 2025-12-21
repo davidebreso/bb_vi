@@ -807,19 +807,21 @@ static void refresh(int full_screen)
 	int li, changed;
 	char *tp, *sp;		// pointer into text[] and screen[]
 
-	if (ENABLE_FEATURE_VI_WIN_RESIZE IF_FEATURE_VI_ASK_TERMINAL(&& !T.get_rowcol_error) ) {
+#if ENABLE_FEATURE_V_WIN_RESIZE
+	IF_FEATURE_VI_ASK_TERMINAL(if (!T.get_rowcol_error) ) {
 		unsigned c = columns, r = rows;
 		query_screen_dimensions();
-#if ENABLE_FEATURE_VI_USE_SIGNALS
+# if ENABLE_FEATURE_VI_USE_SIGNALS
 		full_screen |= (c - columns) | (r - rows);
-#else
+# else
 		if (c != columns || r != rows) {
 			full_screen = TRUE;
 			// update screen memory since SIGWINCH won't have done it
 			new_screen(rows, columns);
 		}
-#endif
+# endif
 	}
+#endif
 	sync_cursor(dot, &crow, &ccol);	// where cursor will be (on "dot")
 	tp = screenbegin;	// index into text[] of top line
 
@@ -939,7 +941,7 @@ static int readit(void) // read (maybe cursor) key from stdin
 	// on nonblocking stdin.
 	// Note: read_key sets errno to 0 on success.
  again:
-	c = safe_read_key(STDIN_FILENO, readbuffer, /*timeout:*/ -1);
+	c = safe_read_key(/*timeout:*/ -1);
 	if (c == -1) { // EOF/error
 		if (errno == EAGAIN) // paranoia
 			goto again;
