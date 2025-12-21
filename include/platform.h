@@ -159,7 +159,11 @@ typedef unsigned smalluint;
 #include <io.h>
 #include <tchar.h>
 #define uintptr_t unsigned int
-#define ftruncate _chsize
+/*
+ * on DOS, use _tell to get the current position in the file,
+ * since the byte count returned by write does not include extra CR added to text files
+ */
+#define ftruncate(fd, n) _chsize(fd, _tell(fd))
 #define strnlen _strncnt
 #define getuid() (0)
 #endif

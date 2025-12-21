@@ -1,7 +1,10 @@
 # object files
 *.o
+# map files
+*.map
 # main executables
 vi
+*.exe
 # clangd LSP caches and configs
 compile_commands.json
 .cache
