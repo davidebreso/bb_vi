@@ -4719,7 +4719,7 @@ static void edit_file(char *fn)
 		// poll to see if there is input already waiting. if we are
 		// not able to display output fast enough to keep up, skip
 		// the display update until we catch up with input.
-		if (!readbuffer[0] && mysleep(0) == 0) {
+		if (no_input()) {
 			// no input pending - so update output
 			refresh(FALSE);
 			show_status_line();

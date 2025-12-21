@@ -77,20 +77,21 @@ struct term {
 	// but CRASHME mode uses it as generated command buffer too
 #if ENABLE_FEATURE_VI_CRASHME
 	char readbuffer[128];
-#else
-	char readbuffer[KEYCODE_BUFFER_SIZE];
 #endif
 };
 
 extern struct term T;
 #define rows                    (T.rows               )
 #define columns                 (T.columns            )
-#define pages                   (T.pages            )
+#define pages                   (T.pages              )
 #define oldpage                 (T.oldpage            )
-#define oldpos                  (T.oldpos            )
+#define oldpos                  (T.oldpos             )
+#if ENABLE_FEATURE_VI_CRASHME
 #define readbuffer              (T.readbuffer         )
+#endif
 
-#define isbackspace(c)	((c) == 8 || (c) == 127)
+#define isbackspace(c)					((c) == 8 || (c) == 127)
+#define no_input()							(kbhit() == 0)
 
 // xconio.c
 int safe_read_key(int timeout) FAST_FUNC;

@@ -103,6 +103,7 @@ extern struct term T;
 #define readbuffer              (T.readbuffer         )
 
 #define isbackspace(c)	((c) == term_orig.c_cc[VERASE] || (c) == 8 || (c) == 127)
+#define no_input()			(!readbuffer[0] && mysleep(0) == 0)
 
 // xtermios.c
 int64_t safe_read_key(int timeout) FAST_FUNC;
